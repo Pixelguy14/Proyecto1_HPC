@@ -1,0 +1,11 @@
+Referencias - Proyecto 1 (Tópicos de HPC)
+
+[1] "CSV file management using C++," GeeksforGeeks, Jul. 11, 2025. [Online]. Available: https://www.geeksforgeeks.org/cpp/csv-file-management-using-c/. [Accesado el: Oct. 26, 2026].
+
+[2] "Samplesort," Wikipedia, The Free Encyclopedia, Oct. 23, 2026. [Online]. Available: https://en.wikipedia.org/wiki/Samplesort. [Accesado el: Oct. 26, 2026].
+
+[3] "std::strtod," cppreference.com. [Online]. Available: https://en.cppreference.com/w/cpp/string/byte/strtod. [Accesado el: Oct. 26, 2026].
+
+[4] "std::fread," cppreference.com. [Online]. Available: https://en.cppreference.com/w/cpp/io/c/fread. [Accesado el: Oct. 26, 2026].
+
+% Nota 1: Las referencias [3] y [4] documentan las funciones de conversión y lectura de archivos utilizadas.
