@@ -8,9 +8,11 @@ BINDIR      := .
 
 # Compiler and Flags
 CXX         := g++
-CXXFLAGS    := -Wall -Wextra -std=c++17 -O2
+CXXFLAGS    := -Wall -Wextra -std=c++17 -O3
 #CPPFLAGS    := -Iinclude # Include paths (e.g., if you have a separate 'include' folder)
-CPPFLAGS    := 
+CPPFLAGS    :=
+# Bibliotecas del proyecto: -lrt para shm_open/mmap y -lpthread para hilos.
+LDLIBS      := -lrt -lpthread
 
 # ==============================================================================
 # FILE DISCOVERY & CORRESPONDENCE
@@ -32,7 +34,7 @@ EXEC        := $(BINDIR)/$(TARGET)
 # ==============================================================================
 # RULES & TARGETS
 # ==============================================================================
-.PHONY: all clean
+.PHONY: all clean datos datos-chico run
 
 # Default rule to build the executable
 all: $(EXEC)
@@ -40,7 +42,7 @@ all: $(EXEC)
 # Rule to link object files into the final executable
 $(EXEC): $(OBJS)
 	@mkdir -p $(BINDIR)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDLIBS)
 
 # Rule to compile C++ source files into object files
 # -MMD -MP flags automatically generate .d dependency files
@@ -51,7 +53,22 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 # Include generated dependency files (ignores them if they don't exist yet)
 -include $(DEPS)
 
+# Datos de prueba. Se generan solo si el archivo no existe.
+matriz_1000x1000.csv:
+	python3 tools/generador_csv.py -f 1000 -c 1000 -o $@
+
+matriz_10000x10000.csv:
+	python3 tools/generador_csv.py -f 10000 -c 10000 -o $@
+
+datos-chico: matriz_1000x1000.csv
+
+datos: matriz_10000x10000.csv
+
+# Prueba completa del Sprint 1: leer, ordenar y guardar.
+run: $(EXEC) matriz_1000x1000.csv
+	./$(EXEC) matriz_1000x1000.csv 1000 1000 ordenada.csv
+
 # Clean rule to wipe the build artifacts safely
 clean:
 	@echo "Cleaning project..."
-	rm -r $(OBJDIR) $(EXEC)
+	rm -rf $(OBJDIR) $(EXEC)
