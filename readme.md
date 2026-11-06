@@ -10,4 +10,4 @@ Ordenamiento de matrices de 10,000x10,000 mediante el uso de samplesort implemen
 ## Caracteristicas principales
 
 ## Licencia
-[LICENSE]
+[LICENCIA MIT](LICENSE)
