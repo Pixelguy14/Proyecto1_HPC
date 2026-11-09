@@ -1,7 +1,7 @@
 // ============================================================================
 // shared_memory.cpp - Implementacion de shm_open/ftruncate/mmap y mutex
 //
-// Proyecto 1 - Topicos de HPC (Sprint 2 - Paco)
+// Proyecto 1 - Topicos de HPC (Sprint 2)
 //
 // Tres recursos POSIX se combinan aqui:
 //   - shm_open(): crea/abre un objeto en /dev/shm.

@@ -1,7 +1,7 @@
 // ============================================================================
 // parallel_sort.cpp - Implementacion de pthread_create/pthread_join
 //
-// Proyecto 1 - Topicos de HPC (Sprint 2 - Paco)
+// Proyecto 1 - Topicos de HPC (Sprint 2)
 //
 // Este archivo solo coordina hilos. El trabajo pesado (ordenar un rango) vive
 // en sort_worker.cpp, y la memoria/contadores compartidos viven en
@@ -15,6 +15,7 @@
 #include <cstring>
 #include <vector>
 
+#include "merge_sort.hpp"
 #include "sort_worker.hpp"
 
 namespace {
@@ -48,6 +49,45 @@ void* thread_entry(void* raw) {
     sort_worker(&task->args);
     shared_control_mark_done(task->control);
 
+    return nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// Contexto de un hilo que ordena cubetas
+// ---------------------------------------------------------------------------
+// A diferencia de ThreadTask, aqui no hay un solo rango: el hilo recorre las
+// cubetas que le tocaron (worker_id, worker_id + num_workers, ...). Los offsets
+// son los mismos para todos los hilos y solo se leen, por lo que no necesitan
+// proteccion.
+struct BucketTask {
+    double* data = nullptr;
+    const std::size_t* offsets = nullptr;
+    std::size_t num_buckets = 0;
+    std::size_t worker_id = 0;
+    std::size_t num_workers = 0;
+    SharedControl* control = nullptr;
+};
+
+// ---------------------------------------------------------------------------
+// bucket_thread_entry - ordena las cubetas asignadas a un worker
+// ---------------------------------------------------------------------------
+// Cada cubeta [offsets[b], offsets[b + 1]) se ordena con merge_sort_range().
+// Las cubetas vacias (begin == end) se saltan para no reservar buffers
+// temporales inutiles. Al final se marca el avance igual que en el Sprint 2.
+void* bucket_thread_entry(void* raw) {
+    BucketTask* task = static_cast<BucketTask*>(raw);
+
+    for (std::size_t b = task->worker_id; b < task->num_buckets;
+         b += task->num_workers) {
+        const std::size_t begin = task->offsets[b];
+        const std::size_t end = task->offsets[b + 1];
+
+        if (begin < end) {
+            merge_sort_range(task->data, begin, end);
+        }
+    }
+
+    shared_control_mark_done(task->control);
     return nullptr;
 }
 
@@ -138,4 +178,78 @@ bool parallel_sort_chunks(double* data, std::size_t n,
     // Solo se considera exitosa la corrida si se crearon todos los hilos. Un
     // valor menor indica que parte del arreglo no fue procesada.
     return created == num_threads;
+}
+
+// ---------------------------------------------------------------------------
+// parallel_sort_buckets - orden local del Sample Sort
+// ---------------------------------------------------------------------------
+// Es la version del Sprint 3: en lugar de dividir [0, n) en bloques iguales,
+// recibe offsets calculados por el scatter. Las cubetas pueden tener tamanos
+// muy distintos, asi que el reparto se hace por turnos y no por rangos fijos.
+bool parallel_sort_buckets(double* data, const std::size_t* offsets,
+                           std::size_t num_buckets, std::size_t num_workers,
+                           SharedControl* control, ParallelSortStats& stats) {
+    stats = ParallelSortStats{};
+
+    if (data == nullptr || offsets == nullptr || num_buckets == 0 ||
+        num_workers == 0 || control == nullptr) {
+        std::fprintf(stderr, "parallel_sort_buckets: parametros invalidos\n");
+        return false;
+    }
+
+    // Validar que los offsets sean monotonicos evita que un error del scatter
+    // se convierta en un rango invertido o fuera de los limites del arreglo.
+    for (std::size_t b = 0; b < num_buckets; ++b) {
+        if (offsets[b] > offsets[b + 1]) {
+            std::fprintf(stderr,
+                         "parallel_sort_buckets: offsets no monotonos en la cubeta %zu\n",
+                         b);
+            return false;
+        }
+    }
+
+    // Igual que en parallel_sort_chunks(): reiniciar el bloque de control bajo
+    // el mutex antes de lanzar una nueva generacion de workers.
+    pthread_mutex_lock(&control->mutex);
+    control->completed_workers = 0;
+    control->error = 0;
+    pthread_mutex_unlock(&control->mutex);
+
+    std::vector<pthread_t> threads(num_workers);
+    std::vector<BucketTask> tasks(num_workers);
+    std::size_t created = 0;
+
+    const auto begin = std::chrono::steady_clock::now();
+
+    for (std::size_t i = 0; i < num_workers; ++i) {
+        tasks[i].data = data;
+        tasks[i].offsets = offsets;
+        tasks[i].num_buckets = num_buckets;
+        tasks[i].worker_id = i;
+        tasks[i].num_workers = num_workers;
+        tasks[i].control = control;
+
+        const int rc = pthread_create(&threads[i], nullptr, bucket_thread_entry,
+                                      &tasks[i]);
+        if (rc != 0) {
+            std::fprintf(stderr,
+                         "parallel_sort_buckets: pthread_create fallo en el worker %zu: %s\n",
+                         i, std::strerror(rc));
+            break;
+        }
+        ++created;
+    }
+
+    for (std::size_t i = 0; i < created; ++i) {
+        pthread_join(threads[i], nullptr);
+    }
+
+    const auto end = std::chrono::steady_clock::now();
+
+    stats.sort_ms =
+        std::chrono::duration<double, std::milli>(end - begin).count();
+    stats.created_workers = created;
+    stats.completed_workers = control->completed_workers;
+
+    return created == num_workers;
 }

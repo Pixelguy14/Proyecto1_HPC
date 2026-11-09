@@ -2,7 +2,7 @@
 // shared_memory.hpp - Memoria compartida y bloque de control
 //
 // Proyecto 1 - Topicos de HPC
-// Sprint 2 (Paco): shm_open + ftruncate + mmap para el arreglo gigante y un
+// Sprint 2: shm_open + ftruncate + mmap para el arreglo gigante y un
 // bloque de control con mutex process-shared para los contadores de progreso.
 //
 // Se usa memoria compartida desde el Sprint 2 (aunque por ahora los hilos

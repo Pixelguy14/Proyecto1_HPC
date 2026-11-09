@@ -2,7 +2,7 @@
 // sample_sort.hpp - Muestreo, splitters y busqueda binaria (Sample Sort)
 //
 // Proyecto 1 - Topicos de HPC
-// Sprint 3 (Julian): seleccionar una muestra aleatoria, ordenarla, elegir los
+// Sprint 3: seleccionar una muestra aleatoria, ordenarla, elegir los
 // splitters y decidir a que cubeta pertenece cada elemento.
 //
 // Sample Sort en tres ideas:
@@ -11,10 +11,10 @@
 //   3. Repartir cada elemento en una cubeta segun los splitters.
 //
 // Este modulo NO hace el scatter ni el gather; solo construye el "plan"
-// (los splitters) y responde "a que cubeta va este valor". El Sprint 3 de Paco
+// (los splitters) y responde "a que cubeta va este valor". El Sprint 3
 // usa estas funciones para mover los datos y ordenar cada cubeta.
 //
-// Semantica de cubetas (importante para el Scatter/Gather del Sprint 3-Paco):
+// Semantica de cubetas (importante para el Scatter/Gather del Sprint 3):
 //   con splitters s[0..k-1], el elemento x va a la cubeta
 //       find_bucket(...) = cantidad de splitters estrictamente menores que x
 //   Es decir:

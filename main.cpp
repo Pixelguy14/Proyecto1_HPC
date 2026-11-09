@@ -2,32 +2,38 @@
 // Proyecto 1 - Topicos de HPC
 // Sprint 1: lectura manual de CSV + Merge Sort propio + guardado en archivo
 // Sprint 2: modo --hilos con mmap compartido, pthreads y mutex
+// Sprint 3: modo --muestreo con Sample Sort completo (scatter/gather)
 //
 // Equipo: Francisco Javier Melendez Ruiz y Jose Julian Sierra Alvarez
 //
 // Este archivo es el punto de entrada y el "pegamento" entre modulos:
-//   - csv_parser:    convierte el CSV en doubles.
-//   - merge_sort:    ordena el arreglo (secuencial o por rangos).
-//   - sort_worker:   ordena el bloque de un hilo.
-//   - shared_memory: crea los segmentos mmap y el bloque de control.
-//   - parallel_sort: crea y espera los hilos.
-//   - file_io:       verifica el orden y guarda el resultado.
+//   - csv_parser:     convierte el CSV en doubles.
+//   - merge_sort:     ordena el arreglo (secuencial o por rangos).
+//   - sort_worker:    ordena el bloque de un hilo.
+//   - shared_memory:  crea los segmentos mmap y el bloque de control.
+//   - parallel_sort:  crea y espera los hilos.
+//   - sample_sort:    muestreo, splitters y busqueda binaria.
+//   - scatter_gather: reparte en cubetas y ordena cada cubeta en paralelo.
+//   - file_io:        verifica el orden y guarda el resultado.
 //
 // Compilacion:
 //   make
 //   (o: g++ -O3 -std=c++17 -Wall -Wextra main.cpp csv_parser.cpp
 //        merge_sort.cpp file_io.cpp sort_worker.cpp parallel_sort.cpp
-//        shared_memory.cpp -o leer_csv -lrt -lpthread)
+//        shared_memory.cpp sample_sort.cpp scatter_gather.cpp
+//        -o leer_csv -lrt -lpthread)
 //
 // Uso:
 //   ./leer_csv <archivo.csv> <filas> <columnas>
 //   ./leer_csv <archivo.csv> <filas> <columnas> <salida.csv>
 //   ./leer_csv <archivo.csv> <filas> <columnas> --hilos <N>
+//   ./leer_csv <archivo.csv> <filas> <columnas> --muestreo <N> [salida.csv]
 //
 // Ejemplos:
 //   ./leer_csv matriz_1000x1000.csv 1000 1000
 //   ./leer_csv matriz_1000x1000.csv 1000 1000 ordenada.csv
 //   ./leer_csv matriz_1000x1000.csv 1000 1000 --hilos 4
+//   ./leer_csv matriz_1000x1000.csv 1000 1000 --muestreo 8 ordenada.csv
 //
 // Generar los datos de prueba:
 //   python3 tools/generador_csv.py -f 1000 -c 1000
@@ -36,11 +42,13 @@
 #include "file_io.hpp"
 #include "merge_sort.hpp"
 #include "parallel_sort.hpp"
+#include "scatter_gather.hpp"
 #include "shared_memory.hpp"
 #include "sort_worker.hpp"
 
 #include <cerrno>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -61,12 +69,15 @@ void usage(const char* prog) {
                  "  %s <archivo.csv> <filas> <columnas>                solo lectura\n"
                  "  %s <archivo.csv> <filas> <columnas> <salida.csv>   secuencial + orden + guardado\n"
                  "  %s <archivo.csv> <filas> <columnas> --hilos <N>    mmap + hilos (bloques)\n"
+                 "  %s <archivo.csv> <filas> <columnas> --muestreo <N> [salida.csv]\n"
+                 "                                                      Sample Sort completo (N cubetas/hilos)\n"
                  "\n"
                  "Ejemplos:\n"
                  "  %s matriz_1000x1000.csv 1000 1000\n"
                  "  %s matriz_1000x1000.csv 1000 1000 ordenada.csv\n"
-                 "  %s matriz_1000x1000.csv 1000 1000 --hilos 4\n",
-                 prog, prog, prog, prog, prog, prog);
+                 "  %s matriz_1000x1000.csv 1000 1000 --hilos 4\n"
+                 "  %s matriz_1000x1000.csv 1000 1000 --muestreo 8 ordenada.csv\n",
+                 prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +115,25 @@ bool parse_size(const char* text, std::size_t& value) {
 double milliseconds(std::chrono::steady_clock::time_point begin,
                     std::chrono::steady_clock::time_point end) {
     return std::chrono::duration<double, std::milli>(end - begin).count();
+}
+
+// ---------------------------------------------------------------------------
+// checksum_bits - huella independiente del orden
+// ---------------------------------------------------------------------------
+// Suma los bits de cada double como uint64_t. La suma de bits no depende del
+// orden de los elementos, asi que dos arreglos con el mismo multiset de valores
+// producen el mismo resultado aunque esten ordenados de forma distinta.
+//
+// Se usa para verificar que el Sample Sort no perdio ni duplico elementos sin
+// depender de la precision de una suma en punto flotante.
+std::uint64_t checksum_bits(const double* data, std::size_t n) {
+    std::uint64_t sum = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        std::uint64_t bits = 0;
+        std::memcpy(&bits, &data[i], sizeof(bits));
+        sum += bits;
+    }
+    return sum;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +396,173 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
     return ok;
 }
 
+// ============================================================================
+// Flujo Sample Sort completo (Sprint 3)
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// run_sample_sort - scatter/gather paralelo con salida global
+// ---------------------------------------------------------------------------
+// Recursos:
+//   1. /proyecto1_hpc_data  arreglo original
+//   2. /proyecto1_hpc_temp  buffer de scatter y resultado ordenado
+//   3. /proyecto1_hpc_ctrl  mutex + contadores de workers
+//
+// Flujo:
+//   load_csv_into(data)
+//     -> sample_sort_parallel(data, temp, ...)
+//          -> plan (muestreo + splitters)
+//          -> conteo por cubeta
+//          -> offsets
+//          -> scatter a temp
+//          -> orden local de cubetas en paralelo
+//     -> verificar temp globalmente
+//     -> comparar checksum contra data
+//     -> guardar temp si se pidio salida
+//
+// Parametros:
+//   path         CSV de entrada.
+//   rows, cols   Dimensiones de la matriz.
+//   num_buckets  Cubetas y workers del Sample Sort (>= 2).
+//   output_path  CSV de salida, o nullptr para solo verificar.
+//
+// Devuelve true si el resultado quedo ordenado, sin perdida de elementos y, si
+// se pidio, se guardo correctamente.
+bool run_sample_sort(const char* path, std::size_t rows, std::size_t cols,
+                     std::size_t num_buckets, const char* output_path) {
+    const std::size_t total = rows * cols;
+    const std::size_t data_bytes = total * sizeof(double);
+
+    SharedMemory data_shm;
+    if (!shared_create(data_shm, "/proyecto1_hpc_data", data_bytes)) {
+        return false;
+    }
+
+    SharedMemory temp_shm;
+    if (!shared_create(temp_shm, "/proyecto1_hpc_temp", data_bytes)) {
+        shared_release(data_shm, true);
+        return false;
+    }
+
+    SharedMemory ctrl_shm;
+    if (!shared_create(ctrl_shm, "/proyecto1_hpc_ctrl",
+                       sizeof(SharedControl))) {
+        shared_release(temp_shm, true);
+        shared_release(data_shm, true);
+        return false;
+    }
+
+    SharedControl* control = static_cast<SharedControl*>(ctrl_shm.addr);
+    if (!shared_control_init(control, num_buckets)) {
+        shared_release(ctrl_shm, true);
+        shared_release(temp_shm, true);
+        shared_release(data_shm, true);
+        return false;
+    }
+
+    double* data = static_cast<double*>(data_shm.addr);
+    double* temp = static_cast<double*>(temp_shm.addr);
+
+    // Limpieza unica para todas las rutas posteriores a la inicializacion.
+    auto cleanup = [&]() {
+        shared_control_destroy(control);
+        shared_release(ctrl_shm, true);
+        shared_release(temp_shm, true);
+        shared_release(data_shm, true);
+    };
+
+    const auto read_begin = std::chrono::steady_clock::now();
+    std::size_t written = 0;
+    const bool loaded = load_csv_into(path, data, total, written);
+    const auto read_end = std::chrono::steady_clock::now();
+
+    if (!loaded || written != total) {
+        std::fprintf(stderr,
+                     "main: no se pudo leer '%s' en la memoria compartida\n",
+                     path);
+        cleanup();
+        return false;
+    }
+
+    const double read_ms = milliseconds(read_begin, read_end);
+
+    std::printf("Modo            : Sample Sort (mmap + pthreads)\n");
+    std::printf("Memoria compart.: %.2f MB datos + %.2f MB temporal\n",
+                static_cast<double>(data_bytes) / (1024.0 * 1024.0),
+                static_cast<double>(data_bytes) / (1024.0 * 1024.0));
+    std::printf("Cubetas/hilos   : %zu\n", num_buckets);
+    print_summary(path, data, rows, cols, read_ms);
+
+    // 10,000 valores de muestra: barato frente a 1 M o 100 M y suficiente para
+    // estimar bien los quantiles con datos uniformes.
+    constexpr std::size_t kSampleSize = 10000;
+    constexpr std::uint64_t kSeed = 42;
+
+    ScatterGatherStats stats;
+    const bool sample_ok =
+        sample_sort_parallel(data, temp, total, num_buckets, kSampleSize,
+                             kSeed, control, stats);
+
+    if (!sample_ok) {
+        cleanup();
+        return false;
+    }
+
+    // Verificacion global y de multiset. El checksum de bits no depende del
+    // orden, asi que detecta elementos perdidos o duplicados.
+    const bool sorted = is_sorted_ascending(temp, total);
+    const std::uint64_t input_sum = checksum_bits(data, total);
+    const std::uint64_t output_sum = checksum_bits(temp, total);
+    const bool same_values = (input_sum == output_sum);
+
+    const std::size_t ideal = total / num_buckets;
+
+    std::printf("\n--- Sample Sort paralelo (scatter/gather) ---\n");
+    std::printf("Splitters       : %zu\n", stats.num_splitters);
+    std::printf("Tiempo plan     : %.3f ms\n", stats.plan_ms);
+    std::printf("Tiempo conteo   : %.3f ms\n", stats.count_ms);
+    std::printf("Tiempo scatter  : %.3f ms\n", stats.scatter_ms);
+    std::printf("Tiempo orden    : %.3f ms\n", stats.sort_ms);
+    std::printf("Gather          : implicito (cubetas contiguas)\n");
+    std::printf("Tiempo pipeline : %.3f ms\n", stats.total_ms);
+    std::printf("Conteo min/max  : %zu / %zu (ideal %zu)\n", stats.min_bucket,
+                stats.max_bucket, ideal);
+
+    if (num_buckets <= 16) {
+        std::printf("Conteo cubetas  :");
+        for (std::size_t b = 0; b < stats.counts.size(); ++b) {
+            std::printf(" %zu", stats.counts[b]);
+        }
+        std::printf("\n");
+    }
+
+    std::printf("Verificacion    : %s\n", sorted ? "ORDENADO" : "ERROR");
+    std::printf("Checksum bits   : %s\n",
+                same_values ? "OK (mismos elementos)" : "ERROR");
+
+    bool saved = true;
+    if (output_path != nullptr) {
+        const auto write_begin = std::chrono::steady_clock::now();
+        saved = save_csv(output_path, temp, rows, cols);
+        const auto write_end = std::chrono::steady_clock::now();
+
+        if (!saved) {
+            std::fprintf(stderr, "main: no se pudo guardar '%s'\n", output_path);
+        } else {
+            std::printf("Tiempo escritura: %.3f ms\n",
+                        milliseconds(write_begin, write_end));
+            std::printf("Salida          : %s\n", output_path);
+        }
+    }
+
+    const auto finish = std::chrono::steady_clock::now();
+    std::printf("Tiempo total    : %.3f ms\n",
+                milliseconds(read_begin, finish));
+
+    cleanup();
+    return sorted && same_values && saved;
+}
+
 }  // namespace
 
 // ============================================================================
@@ -373,11 +570,13 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
 // ============================================================================
 // Argumentos obligatorios: archivo.csv, filas, columnas.
 // Opcionales:
-//   - una ruta de salida (solo modo secuencial),
-//   - "--hilos N" (modo paralelo, sin salida global por ahora).
+//   - una ruta de salida,
+//   - "--hilos N": Sprint 2, ordena bloques contiguos (sin salida global),
+//   - "--muestreo N": Sprint 3, Sample Sort completo (N cubetas/hilos).
 //
-// No se permite combinar salida con --hilos: el modo paralelo actual ordena
-// bloques, no el arreglo completo, asi que guardar el resultado seria enganoso.
+// --hilos y --muestreo son excluyentes. --hilos sigue rechazando salida porque
+// solo ordena bloques; --muestreo si acepta salida porque produce un arreglo
+// globalmente ordenado.
 int main(int argc, char** argv) {
     if (argc < 4) {
         usage(argv[0]);
@@ -394,15 +593,23 @@ int main(int argc, char** argv) {
 
     const char* output_path = nullptr;
     std::size_t num_threads = 0;
+    std::size_t num_buckets = 0;
 
     // Los argumentos opcionales se pueden dar en cualquier orden. El primero
-    // que no sea --hilos se interpreta como ruta de salida; un segundo valor
-    // suelto es un error.
+    // que no sea una bandera se interpreta como ruta de salida; un segundo
+    // valor suelto es un error.
     for (int i = 4; i < argc; ++i) {
         if (std::strcmp(argv[i], "--hilos") == 0) {
             // --hilos consume el siguiente argumento como cantidad de hilos.
             if (i + 1 >= argc || !parse_size(argv[++i], num_threads)) {
                 std::fprintf(stderr, "main: --hilos requiere un entero positivo\n");
+                return EXIT_FAILURE;
+            }
+        } else if (std::strcmp(argv[i], "--muestreo") == 0) {
+            // --muestreo consume el siguiente argumento como cubetas/hilos.
+            if (i + 1 >= argc || !parse_size(argv[++i], num_buckets)) {
+                std::fprintf(stderr,
+                             "main: --muestreo requiere un entero positivo\n");
                 return EXIT_FAILURE;
             }
         } else if (output_path == nullptr) {
@@ -413,12 +620,32 @@ int main(int argc, char** argv) {
         }
     }
 
-    // num_threads > 0 implica que el usuario paso --hilos (parse_size rechaza 0).
+    if (num_threads > 0 && num_buckets > 0) {
+        std::fprintf(stderr,
+                     "main: --hilos y --muestreo no se pueden combinar\n");
+        return EXIT_FAILURE;
+    }
+
+    if (num_buckets == 1) {
+        std::fprintf(stderr,
+                     "main: --muestreo requiere al menos 2 cubetas\n");
+        return EXIT_FAILURE;
+    }
+
+    // Sprint 3: Sample Sort completo con salida global opcional.
+    if (num_buckets > 0) {
+        return run_sample_sort(path, rows, cols, num_buckets, output_path)
+                   ? EXIT_SUCCESS
+                   : EXIT_FAILURE;
+    }
+
+    // Sprint 2: bloques contiguos. No produce orden global, asi que no admite
+    // archivo de salida.
     if (num_threads > 0) {
         if (output_path != nullptr) {
             std::fprintf(stderr,
                          "main: el modo --hilos no genera salida global; "
-                         "use el modo secuencial o espere al Sprint 3\n");
+                         "use --muestreo para el Sample Sort completo\n");
             return EXIT_FAILURE;
         }
         return run_parallel(path, rows, cols, num_threads) ? EXIT_SUCCESS

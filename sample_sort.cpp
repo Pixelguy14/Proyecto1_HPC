@@ -1,7 +1,7 @@
 // ============================================================================
 // sample_sort.cpp - Implementacion del muestreo y los splitters
 //
-// Proyecto 1 - Topicos de HPC (Sprint 3 - Julian)
+// Proyecto 1 - Topicos de HPC (Sprint 3)
 //
 // Este archivo construye el "plan" de Sample Sort: una lista de valores
 // frontera (splitters) y una forma rapida de decidir a que cubeta va cada

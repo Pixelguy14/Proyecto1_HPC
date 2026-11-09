@@ -2,10 +2,10 @@
 // parallel_sort.hpp - Ordenamiento por bloques con pthreads
 //
 // Proyecto 1 - Topicos de HPC
-// Sprint 2 (Paco): lanzar y sincronizar hilos con pthread_create/pthread_join.
+// Sprint 2: lanzar y sincronizar hilos con pthread_create/pthread_join.
 //
 // Este modulo es la capa de "sistemas": no sabe como se ordena un rango.
-// Julian aporta sort_worker() y worker_range(); aqui solo se crean los hilos,
+// sort_worker() y worker_range(); aqui solo se crean los hilos,
 // se les asigna un bloque contiguo y se espera a que terminen.
 //
 // Flujo completo:
@@ -80,5 +80,41 @@ struct ParallelSortStats {
 bool parallel_sort_chunks(double* data, std::size_t n,
                           std::size_t num_threads, SharedControl* control,
                           ParallelSortStats& stats);
+
+// ---------------------------------------------------------------------------
+// parallel_sort_buckets
+// ---------------------------------------------------------------------------
+// Ordena en paralelo un conjunto de rangos NO contiguos entre si. Se usa en el
+// Sprint 3 para ordenar cada cubeta del Sample Sort: las cubetas ya estan una
+// detras de otra en memoria, pero tienen tamanos distintos.
+//
+// El reparto se hace por turnos:
+//   worker 0 -> cubetas 0, W, 2W, ...
+//   worker 1 -> cubetas 1, W+1, 2W+1, ...
+//   ...
+// donde W = num_workers. Asi se soporta cualquier combinacion de cubetas y
+// workers, y las cubetas vacias simplemente se saltan.
+//
+// Parametros:
+//   data         Arreglo que contiene todas las cubetas.
+//   offsets      Arreglo de num_buckets + 1 posiciones. La cubeta b ocupa
+//                [offsets[b], offsets[b + 1]). Debe ser no decreciente.
+//   num_buckets  Cantidad de cubetas.
+//   num_workers  Cantidad de hilos a crear. Debe ser > 0.
+//   control      Bloque inicializado con shared_control_init(control, num_workers).
+//   stats        Salida: tiempo de pared y contadores de la corrida.
+//
+// Devuelve:
+//   true   si se crearon y esperaron todos los workers.
+//   false  si algun parametro es invalido, si offsets no es monotono o si falla
+//          pthread_create().
+//
+// Postcondicion:
+//   Cada rango [offsets[b], offsets[b + 1]) queda ordenado de forma ascendente.
+//   No se modifica ningun elemento fuera de esos rangos.
+// ---------------------------------------------------------------------------
+bool parallel_sort_buckets(double* data, const std::size_t* offsets,
+                           std::size_t num_buckets, std::size_t num_workers,
+                           SharedControl* control, ParallelSortStats& stats);
 
 #endif  // PARALLEL_SORT_HPP
