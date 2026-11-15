@@ -1,7 +1,7 @@
 # ==============================================================================
 # PROJECT CONFIGURATION
 # ==============================================================================
-TARGET      := leer_csv
+TARGET      := ordenar_matriz
 SRCDIR      := .
 OBJDIR      := obj
 BINDIR      := .
@@ -29,12 +29,11 @@ DEPS        := $(OBJS:.o=.d)
 
 # Final binary path
 EXEC        := $(BINDIR)/$(TARGET)
-# EXEC        := $(TARGET)
 
 # ==============================================================================
 # RULES & TARGETS
 # ==============================================================================
-.PHONY: all clean datos datos-chico run
+.PHONY: all clean entrega
 
 # Default rule to build the executable
 all: $(EXEC)
@@ -53,20 +52,9 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 # Include generated dependency files (ignores them if they don't exist yet)
 -include $(DEPS)
 
-# Datos de prueba. Se generan solo si el archivo no existe.
-matriz_1000x1000.csv:
-	python3 tools/generador_csv.py -f 1000 -c 1000 -o $@
-
-matriz_10000x10000.csv:
-	python3 tools/generador_csv.py -f 10000 -c 10000 -o $@
-
-datos-chico: matriz_1000x1000.csv
-
-datos: matriz_10000x10000.csv
-
-# Prueba completa del Sprint 1: leer, ordenar y guardar.
-run: $(EXEC) matriz_1000x1000.csv
-	./$(EXEC) matriz_1000x1000.csv 1000 1000 ordenada.csv
+# Arma la carpeta de entrega (codigo + matriz_a.txt, sin duplicar los 16.8 GB).
+entrega: $(EXEC)
+	./empaquetar_entrega.sh
 
 # Clean rule to wipe the build artifacts safely
 clean:

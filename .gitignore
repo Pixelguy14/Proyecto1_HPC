@@ -1,5 +1,10 @@
 matriz_*
 ordenada*.csv
+salida*
+*.bin
+runs/
+entrega/
+ordenar_matriz
 leer_csv
 obj
 ignorame.md
