@@ -44,6 +44,7 @@
 // ============================================================================
 #include "chunked_reader.hpp"
 #include "csv_parser.hpp"
+#include "external_sort.hpp"
 #include "file_io.hpp"
 #include "parallel_sort.hpp"
 #include "scatter_gather.hpp"
@@ -360,10 +361,30 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
     const std::size_t total      = rows * cols;
     const std::size_t data_bytes = total * sizeof(double);
 
-    // data + temp van en /dev/shm; los buffers de merge suben el pico de RAM.
-    // La estimacion es conservadora: 2x en /dev/shm y 3x en RAM.
-    if (!check_memory("modo --hilos", data_bytes * 2, data_bytes * 3, force)) {
-        return false;
+    // Comprobar si la matriz cabe en memoria fisica (RAM y /dev/shm).
+    // Si no cabe y no se paso --forzar, se activa automaticamente el
+    // ordenamiento externo (runs en disco + K-Way Merge con Min-Heap).
+    const std::size_t shm_free = shm_free_bytes();
+    const std::size_t ram_free = mem_available_bytes();
+    const bool in_memory_fits = (force || (data_bytes * 2 <= shm_free && data_bytes * 3 <= ram_free));
+
+    if (!in_memory_fits) {
+        std::printf("\n\n");
+        std::printf("TEST: La matriz (%zu valores = %.2f GB) no cabe en memoria\n",
+                    total, static_cast<double>(data_bytes) / (1024.0 * 1024.0 * 1024.0));
+        std::printf("disponible (requiere %.2f GB en shm / %.2f GB en RAM;\n",
+                    static_cast<double>(data_bytes * 2) / (1024.0 * 1024.0 * 1024.0),
+                    static_cast<double>(data_bytes * 3) / (1024.0 * 1024.0 * 1024.0));
+        std::printf("disponible: %.2f GB en shm / %.2f GB en RAM).\n",
+                    static_cast<double>(shm_free) / (1024.0 * 1024.0 * 1024.0),
+                    static_cast<double>(ram_free) / (1024.0 * 1024.0 * 1024.0));
+        std::printf("-> Activando el Ordenamiento Externo Out-of-Core\n");
+        std::printf("   (runs en disco + K-Way Merge con Min-Heap y streaming)\n");
+        std::printf("\n\n");
+
+        ExternalSortStats ext_stats;
+        return run_external_sort(path, rows, cols, num_threads, output_path,
+                                 chunk_bytes, ext_stats);
     }
 
     // Crear los tres segmentos de memoria compartida en orden.
@@ -491,7 +512,7 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
         std::printf("\n");
     }
 
-    std::printf("Verificacion    : %s\n", sorted ? "ORDENADO" : "ERROR");
+    std::printf("Verificacion    : %s\n", sorted ? "ordenado" : "ERROR");
     std::printf("Checksum bits   : %s\n",
                 same_values ? "OK (mismos elementos)" : "ERROR");
 
@@ -698,7 +719,7 @@ bool run_verify_bin(const char* path, std::size_t rows, std::size_t cols) {
     std::printf("Checksum bits   : %llu\n",
                 static_cast<unsigned long long>(stats.checksum));
     std::printf("Tiempo lectura  : %.3f ms\n", elapsed_ms);
-    std::printf("Verificacion    : %s\n", ok ? "ORDENADO" : "ERROR");
+    std::printf("Verificacion    : %s\n", ok ? "ordenado" : "ERROR");
 
     return ok;
 }

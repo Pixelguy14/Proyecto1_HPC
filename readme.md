@@ -73,11 +73,11 @@ texto completo nunca se carga en heap.
 ### Ejemplos
 
 ```bash
-# Lectura por chunks: validar matriz_a.txt completa sin ordenar
+# Lectura por chunks: validar matriz_a.txt completa sin ordenar (unicamente lectura)
 ./ordenar_matriz 64
 
-# Sample Sort con 8 hilos: ordena y verifica (sin guardar)
-./ordenar_matriz 64 --hilos 8
+# Sample Sort con X hilos: ordena y verifica (sin guardar)
+./ordenar_matriz 64 --hilos 8 # parametors: tamaño del chunk, y cantidad de hilos
 
 # Sample Sort con 4 hilos: ordena y guarda en binario
 ./ordenar_matriz 64 --hilos 4 salida.bin
@@ -96,16 +96,26 @@ texto completo nunca se carga en heap.
 | Tipo | floats con 6 decimales, separados por espacios |
 | Tamaño como `double` | ~12.8 GB por arreglo |
 
-### Requisitos de memoria
+### Requisitos de memoria y Activación Automática Out-of-Core
 
-El Sample Sort en memoria necesita dos arreglos de ~12.8 GB (`data` y `temp`)
-en `/dev/shm`, más los buffers de merge. En una máquina con 14 GiB de RAM y
-7.5 GiB de `/dev/shm` **no cabe el archivo completo**. El programa hace un
-chequeo previo de memoria y aborta con un mensaje claro antes de intentarlo.
-`--forzar` omite el chequeo (puede provocar `SIGBUS` o `bad_alloc`).
+El Sample Sort puramente en memoria necesita dos arreglos de ~12.8 GB (`data` y `temp`)
+en `/dev/shm`, más los buffers de merge (~25.6 GB a 35 GB de RAM). En una máquina típica
+con 14 GiB de RAM y 7.5 GiB de `/dev/shm` el archivo completo no cabe en memoria a la vez.
 
-Para matrices más pequeñas (ej: 1,000 × 1,000 o 10,000 × 10,000) el Sort en
-memoria sí funciona con la RAM disponible.
+**Activación Automática Out-of-Core (External Merge Sort):**
+El programa consulta en runtime la memoria disponible. Si los datos no caben en RAM/tmpfs,
+**activa automáticamente el ordenamiento externo sin requerir banderas adicionales**:
+1. **Fase 1 (Runs paralelos):** Lee bloques de `chunk_mb` MB con `ChunkedTextReader`
+   y los ordena en memoria mediante Sample Sort paralelo multihilo (`--hilos N`).
+   Vuelca cada bloque a un run binario temporal en `./runs/`.
+2. **Fase 2 (K-Way Merge en streaming):** Abre todos los runs con buffers prefetched,
+   los unifica en tiempo real con un Min-Heap de bajo consumo de memoria (< 50 MB de RAM)
+   y emite el resultado ordenado a `salida` verificando el orden monotono y el checksum de bits.
+3. Limpia automáticamente los archivos temporales de `runs/`.
+
+Para matrices que sí caben en RAM (ej: 1,000 × 1,000 o 10,000 × 10,000), el ordenamiento
+se ejecuta directamente en memoria compartida sin tocar disco. `--forzar` fuerza la
+ejecución puramente en memoria.
 
 ## Entrega
 
