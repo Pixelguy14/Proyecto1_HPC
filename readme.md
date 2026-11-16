@@ -7,13 +7,6 @@ compartida POSIX. El modo por defecto valida la lectura por chunks sin ordenar;
 
 **Equipo:** Francisco Javier Meléndez Ruiz y José Julian Sierra Alvarez.
 
-> **Nota de diseño:** la lectura del archivo de entrada es inherentemente
-> secuencial (un hilo). `ChunkedTextReader` usa `mmap` + `MADV_SEQUENTIAL` y
-> libera páginas con `MADV_DONTNEED`, pero el parseo carácter a carácter no se
-> paraleliza: el ancho de banda de I/O es el cuello de botella, no el CPU. El
-> paralelismo se aplica únicamente al ordenamiento (scatter/gather + orden local
-> de cubetas con pthreads).
-
 ## Compilación
 
 Requisitos: `g++` con C++17 y Linux (usa `mmap`, `shm_open` y `pthreads`).
@@ -21,12 +14,6 @@ Requisitos: `g++` con C++17 y Linux (usa `mmap`, `shm_open` y `pthreads`).
 ```bash
 make          # genera ./ordenar_matriz
 make clean    # borra obj/ y el binario
-```
-
-Equivale a:
-
-```bash
-g++ -O3 -std=c++17 -Wall -Wextra *.cpp -o ordenar_matriz -lrt -lpthread
 ```
 
 ## Uso
@@ -45,7 +32,6 @@ pasar la ruta ni las dimensiones. Los únicos argumentos son:
 | `--hilos N` | Opcional | Lanza el Sample Sort paralelo con `N` hilos/cubetas (`N >= 2`). |
 | `salida` | Opcional | Ruta de salida con `--hilos`. Extensión decide el formato. |
 | `--verificar-bin archivo.bin` | Independiente | Verifica que un `.bin` esté ordenado. |
-| `--forzar` | Opcional | Omite el chequeo previo de RAM y `/dev/shm`. |
 
 ### Modos
 
