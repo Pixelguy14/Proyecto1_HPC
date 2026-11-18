@@ -15,10 +15,55 @@ https://satyadeepmaheshwari.medium.com/sorting-large-datasets-with-limited-memor
 
 https://en.wikipedia.org/wiki/K-way_merge_algorithm
 
-Thomas H. Cormen; Charles E. Leiserson; Ronald L. Rivest; Clifford Stein (2001). Introduction To Algorithms. MIT Press. pp. 28–29. ISBN 978-0-262-03293-3. <- canonical two way merge algorithm 
+Thomas H. Cormen; Charles E. Leiserson; Ronald L. Rivest; Clifford Stein (2001). Introduction To Algorithms. MIT Press. pp. 28–29. ISBN 978-0-262-03293-3. <- para hablar del merge sort.
 
 
-k-way merges are used in external sorting procedures.[4] External sorting algorithms are a class of sorting algorithms that can handle massive amounts of data. Shaffer, Clifford A. (2012-07-26). Data Structures and Algorithm Analysis in C++, Third Edition. Courier Corporation. ISBN 9780486172620.
+k-way merges are used in external sorting procedures.
+[4] External sorting algorithms are a class of sorting algorithms that can handle massive amounts of data. Shaffer, Clifford A. (2012-07-26). Data Structures and Algorithm Analysis in C++, Third Edition. Courier Corporation. ISBN 9780486172620. <- External Merge Sort & K-Way Merge
+
+https://www.geeksforgeeks.org/dsa/reservoir-sampling/
+
+https://medium.com/@dhairyapatelad/parallel-sorting-using-regular-sampling-psrs-4e27eb63b307
+
+https://scispace.com/pdf/i-o-efficient-algorithms-and-data-structures-1nk4tww96g.pdf
+
+https://perso.ens-lyon.fr/loris.marchal/docs-data-aware/ExternalMemorySurveyVitter.pdf
+
+https://en.wikipedia.org/wiki/External_memory_graph_traversal
+
+https://medium.com/@jyjimmylee/how-does-memory-mapping-mmap-work-c8a6a550ba0d
+
+https://www.ibm.com/docs/es/zos/2.1.0?topic=functions-mmap-map-pages-memory
+
+https://www.geeksforgeeks.org/operating-systems/techniques-to-handle-thrashing/
+
+https://www.lenovo.com/mx/es/glosario/thrashing/
+
+https://www.scribd.com/document/142775122/Capitulo-4
+
+https://w3.ual.es/~acorral/DSO/Tema_3.pdf
+
+https://raw.githubusercontent.com/zwan074/technical-books/master/Advanced.Programming.in.the.UNIX.Environment.3rd.Edition.0321637739.pdf
+
+https://www.scribd.com/doc/247004185/Ley-de-Amdahl
+
+https://hpc101-readthedocs-io.translate.goog/en/latest/tutorial/session3/parallel.html?_x_tr_sl=en&_x_tr_tl=es&_x_tr_hl=es&_x_tr_pto=tc
+
+https://drive.uqu.edu.sa/_/gmaahmed/files/D&%20Parallel%20Textbook/An%20Introduction%20to%20Parallel%20Programming2011.pdf
+
+https://jaredmil.medium.com/c-beyond-the-syllabus-11-address-sanitizers-9cc98d1e5b15
+
+https://learn.microsoft.com/es-es/cpp/sanitizers/asan?view=msvc-170
+
+https://www.osc.edu/resources/getting_started/howto/howto_use_address_sanitizer
+
+https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
 
 
+### Eje 1: Algoritmos de Ordenamiento Paralelo y Muestreo
 
+### Eje 2: Ordenamiento Externo (*Out-of-Core*) y Estructuras de Datos
+
+### Eje 3: Sistemas Operativos Unix, Memoria Virtual y POSIX IPC
+
+### Eje 4: Ley de Amdahl, Paralelismo Multicore y Auditoría de Memoria
