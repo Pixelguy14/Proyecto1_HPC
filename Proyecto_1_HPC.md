@@ -1,27 +1,31 @@
-<table style="width: 100%; border-collapse: collapse; border: none;">
-  <tr style="border: none;">
-    <td style="width: 25%; text-align: center; vertical-align: middle; border: none; padding: 10px;">
-      <img src="Imagenes_reporte/cinves_logo.png" alt="Logo Cinvestav" style="max-width: 100%; height: auto;">
-    </td>
-    <td style="width: 75%; vertical-align: middle; border: none; padding-left: 15px;">
-      <h1 style="margin-top: 0;">Proyecto 1</h1>
-      <p style="margin: 4px 0;"><strong>Centro de Investigación y de Estudios Avanzados del Instituto Politécnico Nacional</strong></p>
-      <p style="margin: 4px 0;">Unidad Zacatenco - Departamento de Computación</p>
-      <br>
-      <p style="margin: 4px 0;"><strong>Tópicos selectos: Cómputo de alto desempeño I</strong><br>
-      Dr. José Rodríguez García</p>
-      <br>
-      <p style="margin: 4px 0;">Francisco Javier Meléndez Ruiz<br>
-      José Julián Sierra Álvarez<br>
-      <em>Maestría en Ciencias en Computación</em></p>
-    </td>
-  </tr>
-</table>
+\noindent
+\begin{minipage}[c]{0.23\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{Imagenes_reporte/cinves_logo.png}
+\end{minipage}
+\hfill
+\begin{minipage}[c]{0.73\textwidth}
+  {\Huge \textbf{Proyecto 1}}\\[0.3cm]
+  \textbf{Centro de Investigación y de Estudios Avanzados del Instituto Politécnico Nacional}\\
+  Unidad Zacatenco - Departamento de Computación\\[0.3cm]
+  \textbf{Tópicos selectos: Cómputo de alto desempeño I}\\
+  Dr. José Rodríguez García\\[0.3cm]
+  Francisco Javier Meléndez Ruiz\\
+  José Julián Sierra Álvarez\\
+  \textit{Maestría en Ciencias en Computación}
+\end{minipage}
+\vspace{0.5cm}
+\hrule
+\vspace{0.5cm}
+
+---
 
 ## 1. Introducción
 
-En el marco de la materia de Tópicos Selectos: Cómputo de Alto Desempeño (HPC), este documento presenta el diseño, desarrollo y evaluación experimental del proyecto enfocado en el procesamiento y ordenamiento ascendente a gran escala de un archivo de datos masivo (*40,000 x 40,000* elementos, equivalente a *1,600,000,000* valores de tipo double y un tamaño en disco de aproximadamente 16.8 GB), este es el archivo proporcionado por el profesor. 
-El desarrollo del trabajo fue llevado a cabo de manera colaborativa en conjunto por Francisco Javier Meléndez Ruiz y José Julián Sierra Álvarez, estableciendo como fecha límite de entrega el 20 de noviembre de 2026. Para cumplir con los requerimientos de la asignatura, el sistema fue implementado desde los cimientos mediante una filosofía de sistemas de bajo nivel, adoptando restricciones como la prohibición de utilizar bibliotecas externas para la gestión de archivos CSV (desarrollando un analizador léxico manual en streaming), y principalmente aprovechar el equipo usando las tecnicas aprendidas de programación multinúcleo, multiproceso y multihilo para maximizar el uso de los recursos de hardware disponibles. 
+En el marco de la materia de Tópicos Selectos: Cómputo de Alto Desempeño (HPC), este documento presenta el diseño, desarrollo y evaluación experimental del proyecto enfocado en el procesamiento y ordenamiento ascendente a gran escala de un archivo de datos masivo ($40,000 \times 40,000$ elementos, equivalente a $1,600,000,000$ valores de tipo `double` y un tamaño en disco de aproximadamente $16.8\text{ GB}$), este es el archivo proporcionado por el profesor.
+
+El desarrollo del trabajo fue llevado a cabo de manera colaborativa en conjunto por Francisco Javier Meléndez Ruiz y José Julián Sierra Álvarez, establecida como fecha límite de entrega el 20 de noviembre de 2026. Para cumplir con los requerimientos de la asignatura, el sistema fue implementado desde los cimientos mediante una filosofía de sistemas de bajo nivel, adoptando restricciones como la prohibición de utilizar bibliotecas externas para la gestión de archivos CSV —desarrollando un analizador léxico manual en *streaming* respaldado por rutinas estándar de lectura y conversión de bajo nivel [1, 2, 3]—, y principalmente aprovechar el equipo usando las técnicas aprendidas de programación multinúcleo, multiproceso y multihilo para maximizar el uso de los recursos de hardware disponibles [4].
+
 A lo largo de este reporte se detallarán las dificultades técnicas encontradas frente al volumen masivo de datos, los cambios de paradigma arquitectónico desde un procesamiento puramente en memoria hasta un esquema híbrido por segmentación.
 
 ---
@@ -32,21 +36,25 @@ Para fundamentar la arquitectura del sistema, se estudiaron e implementaron los 
 
 ### 2.1 Multithreading, Multicore y SMT
 
-El paralelismo a nivel de hilo se implementó mediante la interfaz estándar POSIX threads (`pthreads`), permitiendo distribuir cargas de trabajo discretas entre múltiples hilos de ejecución. Para la sincronización eficiente en entornos concurrentes sin incurrir en cuellos de botella en las rutas críticas, se utilizaron primitivas de exclusión mutua configuradas con el atributo de compartición de procesos (`PTHREAD_PROCESS_SHARED`). A nivel de hardware, el diseño explota la arquitectura *Simultaneous Multi-Threading* (SMT) de los núcleos lógicos para solapar la latencia de acceso a la memoria principal durante las operaciones de reubicación de datos.
+El paralelismo a nivel de hilo se implementó mediante la interfaz estándar POSIX threads (`pthreads`), permitiendo distribuir cargas de trabajo discretas entre múltiples hilos de ejecución [4, 5]. Para la sincronización eficiente en entornos concurrentes sin incurrir en cuellos de botella en las rutas críticas, se utilizaron primitivas de exclusión mutua configuradas con el atributo de compartición de procesos (`PTHREAD_PROCESS_SHARED`) [5, 6]. A nivel de hardware, el diseño explota la arquitectura *Simultaneous Multi-Threading* (SMT) de los núcleos lógicos para solapar la latencia de acceso a la memoria principal durante las operaciones de reubicación de datos [4].
 
 ### 2.2 Memoria Mapeada (`mmap`) y Procesamiento por Chunks
 
-Para evitar la saturación de la memoria RAM del sistema al interactuar con ficheros masivos, se emplearon llamadas al sistema Unix de mapeo de archivos en memoria (`mmap`, `shm_open`, `ftruncate`). Asimismo, se integraron directivas de optimización de paginación mediante `madvise` (`MADV_SEQUENTIAL` y `MADV_DONTNEED`), permitiendo liberar de manera síncrona las páginas físicas ya procesadas y garantizando que el consumo de memoria residente (*Resident Set Size*, RSS) permanezca acotado a unos cuantos megabytes durante la lectura en streaming.
+Para evitar la saturación de la memoria RAM del sistema al interactuar con ficheros masivos, se emplearon llamadas al sistema Unix de mapeo de archivos en memoria (`mmap`, `shm_open`, `ftruncate`) [5, 7, 8]. Asimismo, se integraron directivas de optimización de paginación mediante `madvise` (`MADV_SEQUENTIAL` y `MADV_DONTNEED`), permitiendo liberar de manera síncrona las páginas físicas ya procesadas y garantizando que el consumo de memoria residente (*Resident Set Size*, RSS) permanezca acotado a unos cuantos megabytes durante la lectura en *streaming* [5, 7].
 
 ### 2.3 Algoritmos de Ordenamiento y Evolución de Paradigmas
 
-* **Aplicamos un Merge Sort Propio** Algoritmo base de ordenamiento interno basado en la estrategia *divide y vencerás* (top-down), de complejidad temporal determinista $\mathcal{O}(N \log N)$ y estabilidad garantizada. Se clasifica como un algoritmo out-of-place (fuera de lugar), ya que requiere un arreglo auxiliar de memoria temporal del mismo tamaño que el segmento a ordenar para realizar la mezcla de las mitades de manera eficiente.
-* **Decisión de Métodos Algorítmicos** En las fases iniciales de diseño se ponderó el uso del algoritmo *Bucket Sort* tradicional con rangos fijos. Sin embargo, ante la necesidad de paralelizar el ordenamiento de grandes volúmenes de datos y despues de nuestra investigación principal nos reveló que ante datos sesgados, o distribuciones no uniformes, las cubetas habrían sufrido un desbalance de carga (inanición en unos hilos y saturación en otros). Por esta razón, se evolucionó la arquitectura hacia *Sample Sort* obtenido de la literatura: mel cual utiliza un muestreo aleatorio (*reservoir sampling*) para calcular dinámicamente puntos de corte (splitters) equidistantes. Esto garantiza matemáticamente un balanceo de carga óptimo. Operativamente, combina fases out-of-place durante la dispersión o scatter hacia un buffer temporal, con ordenamientos locales que pueden optimizarse en el uso de memoria.
-* **Finalmente Nosotros Implementamos el External Merge Sort con K-Way Merge** Ante problemas de hardware al alojar estructuras masivas de *25.6 GB* en equipos con menos de esa cantidad de memoria RAM y Swap, incorporamos un sistema de ordenamiento externo de dos fases, la generación de bloques ordenados o runs en paralelo mediante Sample Sort, y su unificación posterior en streaming utilizando una estructura de datos de Min-Heap (Tournament Tree). Esta aproximación reduce drásticamente el espacio auxiliar requerido en memoria principal a solo unos cuantos megabytes dedicados a búferes de lectura.
+* **Aplicamos un Merge Sort Propio:** Algoritmo base de ordenamiento interno basado en la estrategia *divide y vencerás* (*top-down*), de complejidad temporal determinista $\mathcal{O}(N \log N)$ y estabilidad garantizada [9]. Se clasifica como un algoritmo *out-of-place* (fuera de lugar), ya que requiere un arreglo auxiliar de memoria temporal del mismo tamaño que el segmento a ordenar para realizar la mezcla de las mitades de manera eficiente [9].
+* **Decisión de Métodos Algorítmicos:** En las fases iniciales de diseño se ponderó el uso del algoritmo *Bucket Sort* tradicional con rangos fijos. Sin embargo, ante la necesidad de paralelizar el ordenamiento de grandes volúmenes de datos, nuestra investigación principal nos reveló que ante datos sesgados o distribuciones no uniformes, las cubetas habrían sufrido un desbalance de carga (inanición en unos hilos y saturación en otros) [10]. Por esta razón, se evolucionó la arquitectura hacia *Sample Sort* obtenido de la literatura [10, 11]: el cual utiliza un muestreo aleatorio (*reservoir sampling*) [12] para calcular dinámicamente puntos de corte (*splitters*) equidistantes. Esto garantiza matemáticamente un balanceo de carga óptimo [10, 11]. Operativamente, combina fases *out-of-place* durante la dispersión o *scatter* hacia un buffer temporal, con ordenamientos locales que pueden optimizarse en el uso de memoria.
+* **Finalmente Nosotros Implementamos el External Merge Sort con K-Way Merge:** Ante problemas de hardware al alojar estructuras masivas de $25.6\text{ GB}$ en equipos con menos de esa cantidad de memoria RAM y *Swap*, incorporamos un sistema de ordenamiento externo de dos fases [13, 14, 15]: la generación de bloques ordenados o *runs* en paralelo mediante *Sample Sort*, y su unificación posterior en *streaming* utilizando una estructura de datos de *Min-Heap* (*Tournament Tree*) [13, 16]. Esta aproximación reduce drásticamente el espacio auxiliar requerido en memoria principal a solo unos cuantos megabytes dedicados a búferes de lectura, siguiendo los modelos teóricos de algoritmos eficientes en entrada/salida (*I/O-efficient algorithms*) [17, 18].
 
 ### 2.4 Acceso a Memoria, Parte Secuencial Contra Parte Paralela
 
-El rendimiento de los sistemas de alto rendimiento está condicionado por el ancho de banda del bus de memoria y las restricciones físicas del almacenamiento secundario. Todo sistema paralelo posee componentes intrínsecamente secuenciales (como el análisis léxico inicial de lectura de ficheros o la escritura final de resultados) y componentes altamente paralelizables (como el ordenamiento local de bloques). El análisis formal del impacto de estas fracciones sobre el rendimiento global se aborda mediante modelos matemáticos de aceleración en la sección de metodología. **a que se refiere con analisis formal?**
+El rendimiento de los sistemas de alto rendimiento está condicionado por el ancho de banda del bus de memoria y las restricciones físicas del almacenamiento secundario [4, 17]. Todo sistema paralelo posee componentes intrínsecamente secuenciales (como el análisis léxico inicial de lectura de ficheros o la escritura final de resultados) y componentes altamente paralelizables (como el ordenamiento local de bloques). La cuantificación matemática de cómo estas fracciones secuenciales acotan la aceleración máxima (*speedup*) del sistema se desarrolla mediante las ecuaciones de la Ley de Amdahl en la Sección 3.4 [4, 19, 20].
+
+### 2.5 Auditoría Dinámica de Memoria y Sanitizadores
+
+En el desarrollo de sistemas concurrentes en C++ que manipulan punteros crudos y segmentos de memoria mapeada, los errores de acceso fuera de límites o condiciones de carrera silenciosas pueden comprometer la integridad de los datos [21]. Para mitigar estos riesgos, se emplean herramientas de instrumentación en tiempo de compilación y ejecución como *AddressSanitizer* (`ASan`), el cual utiliza un mapeo de memoria sombra (*shadow memory*) para detectar desbordamientos de búfer y fugas de memoria [21, 22, 23], junto con *UndefinedBehaviorSanitizer* (`UBSan`), encargado de capturar desbordamientos enteros, alineaciones inválidas y operaciones no definidas por el estándar del lenguaje [24].
 
 ---
 
@@ -54,17 +62,17 @@ El rendimiento de los sistemas de alto rendimiento está condicionado por el anc
 
 ### 3.1 Transición de Bucket Sort a Sample Sort
 
-En las sesiones iniciales de planeación colaborativa del equipo, se evaluó preliminarmente el uso del algoritmo *Bucket Sort* tradicional con rangos fijos de cubetas para repartir los datos. Sin embargo, identificamos un posible riesgo antes de recibir la matriz característica (`matriz_a.txt`): ante conjuntos de datos sesgados o distribuciones no uniformes, las cubetas habrían sufrido un desbalance severo de carga, dejando a algunos hilos con millones de elementos y a otros completamente ociosos, inhabilitando el paralelismo efectivo.
+En las sesiones iniciales de planeación colaborativa del equipo, se evaluó preliminarmente el uso del algoritmo *Bucket Sort* tradicional con rangos fijos de cubetas para repartir los datos. Sin embargo, identificamos un posible riesgo antes de recibir la matriz característica (`matriz_a.txt`): ante conjuntos de datos sesgados o distribuciones no uniformes, las cubetas habrían sufrido un desbalance severo de carga, dejando a algunos hilos con millones de elementos y a otros completamente ociosos, inhabilitando el paralelismo efectivo [10].
 
-Para evitar esta vulnerabilidad teórica, tomamos la decisión de cambiar hacia el paradigma de **Sample Sort**. Este enfoque aplica un muestreo aleatorio sin reemplazo, conocido como *reservoir sampling*, sobre un subconjunto de tamaño fijo de los datos. Posteriormente, ordena dicha muestra mediante nuestro Merge Sort interno y calcula dinámicamente $k$ puntos de corte o *splitters* equidistantes. Esto garantiza matemáticamente un balanceo de carga uniforme entre los hilos trabajadores, independientemente de la distribución subyacente de los valores numéricos.
+Para evitar esta vulnerabilidad teórica, tomamos la decisión de cambiar hacia el paradigma de **Sample Sort** [10, 11]. Este enfoque aplica un muestreo aleatorio sin reemplazo, conocido como *reservoir sampling*, sobre un subconjunto de tamaño fijo de los datos [12]. Posteriormente, ordena dicha muestra mediante nuestro Merge Sort interno [9] y calcula dinámicamente $k$ puntos de corte o *splitters* equidistantes. Esto garantiza matemáticamente un balanceo de carga uniforme entre los hilos trabajadores, independientemente de la distribución subyacente de los valores numéricos [10, 11].
 
 ### 3.2 Arquitectura de Memoria Compartida e Interprocesos (POSIX IPC)
 
-Para cumplir con la restricción de procesar un volumen masivo de datos sin duplicar los 12.8 GB en el espacio de memoria dinámico (*heap*) local de múltiples procesos, se diseñó una capa de abstracción basada en llamadas nativas del sistema operativo Unix, y esto se logró al implementar diversas herramientas, como la creación del segmento global, para el cual se utilizo `shm_open` en conjunto con `ftruncate` para reservar un objeto de memoria compartida con los permisos y dimensiones requeridas en el directorio temporal del kernel; despues de esto se nos ocurrio realizar el mapeo de memoria cero copias mediante `mmap`, tanto el proceso maestro como los hilos concurrentes proyectan el mismo bloque físico en sus respectivos espacios virtuales de direcciones, eliminando la sobrecarga de transferencia por tuberías o canales de copia, logrando una transferencia IPC eficiente. y tambien se implementaron primitivas de tipo `pthread_mutex_t` para una sincronizacion de exclusión mutua, inicializadas con el atributo de compartición entre procesos (`PTHREAD_PROCESS_SHARED`), lo que nos permitio lograr el objetivo de coordinar de manera segura el avance de los hilos sin generar contención excesiva en la ruta crítica.
+Para cumplir con la restricción de procesar un volumen masivo de datos sin duplicar los $12.8\text{ GB}$ en el espacio de memoria dinámico (*heap*) local de múltiples procesos, se diseñó una capa de abstracción basada en llamadas nativas del sistema operativo Unix [5, 6]. Esto se logró al implementar diversas herramientas, como la creación del segmento global, para el cual se utilizó `shm_open` en conjunto con `ftruncate` para reservar un objeto de memoria compartida con los permisos y dimensiones requeridas en el directorio temporal del kernel [5]; después de esto realizamos el mapeo de memoria cero copias mediante `mmap`, donde tanto el proceso maestro como los hilos concurrentes proyectan el mismo bloque físico en sus respectivos espacios virtuales de direcciones, eliminando la sobrecarga de transferencia por tuberías o canales de copia y logrando una transferencia IPC eficiente [5, 7, 8]. También se implementaron primitivas de tipo `pthread_mutex_t` para una sincronización de exclusión mutua, inicializadas con el atributo de compartición entre procesos (`PTHREAD_PROCESS_SHARED`), lo que nos permitió coordinar de manera segura el avance de los hilos sin generar contención excesiva en la ruta crítica [5, 6].
 
 ### 3.3 Restricciones Físicas y Activación del Paradigma *Out-of-Core*
 
-La lectura del archivo de entrada es inherentemente secuencial (un solo hilo de ejecución). La clase `ChunkedTextReader` mapea el archivo mediante `mmap` con la directiva `MADV_SEQUENTIAL` para activar la lectura anticipada del kernel y libera las páginas procesadas mediante `MADV_DONTNEED`. No obstante, el análisis léxico carácter a carácter no se paraleliza debido a que el ancho de banda de entrada/salida (I/O) del almacenamiento constituye el cuello de botella real del sistema, y no la velocidad de cómputo del procesador. El paralelismo se aplica exclusivamente a las fases de ordenamiento (dispersión/recolección y ordenamiento local de cubetas con `pthreads`).
+La lectura del archivo de entrada es inherentemente secuencial (un solo hilo de ejecución). La clase `ChunkedTextReader` mapea el archivo mediante `mmap` con la directiva `MADV_SEQUENTIAL` para activar la lectura anticipada del kernel y libera las páginas procesadas mediante `MADV_DONTNEED` [5, 7]. No obstante, el análisis léxico carácter a carácter no se paraleliza debido a que el ancho de banda de entrada/salida (I/O) del almacenamiento constituye el cuello de botella real del sistema, y no la velocidad de cómputo del procesador [17]. El paralelismo se aplica exclusivamente a las fases de ordenamiento (dispersión/recolección y ordenamiento local de cubetas con `pthreads`) [4].
 
 #### Demostración Formal de Complejidad Espacial
 
@@ -72,79 +80,54 @@ Sea $N = 1.6 \times 10^9$ el total de elementos en `matriz_a.txt` y $S_{\text{do
 
 $$M_{\text{base}} = N \times S_{\text{double}} = (1.6 \times 10^9) \times 8\text{ bytes} = 12.8 \times 10^9\text{ bytes} \approx 11.92\text{ GiB}$$
 
-
-
-Un esquema puramente en memoria (*in-memory*) de Sample Sort requiere mantener simultáneamente en el sistema el arreglo original de entrada (`data`), el arreglo temporal de dispersión (`temp`) y los búferes auxiliares para el Merge Sort local de cada hilo ($\mathcal{O}(N/P)$):
+Un esquema puramente en memoria (*in-memory*) de Sample Sort requiere mantener simultáneamente en el sistema el arreglo original de entrada (`data`), el arreglo temporal de dispersión (`temp`) y los búferes auxiliares para el Merge Sort local de cada hilo ($\mathcal{O}(N/P)$) [9, 10]:
 
 $$M_{\text{in-memory}} = 2(N \times S_{\text{double}}) + \mathcal{O}\left(\frac{N}{P}\right) \approx 25.6\text{ GB} + 1.6\text{ GB} \approx 27.2\text{ GB}$$
 
+Dado que este requerimiento excede tanto la memoria RAM física disponible como la cuota asignada a `/dev/shm` en nuestro entorno de ejecución (cuyas especificaciones detalladas se describen en la Sección 4.1), y descartando el uso de memoria virtual (*swap*) en disco por provocar degradación catastrófica debido al *page fault thrashing* [25, 26], se implementó un sistema de **activación automática Out-of-Core (External Merge Sort)** en dos fases [13, 14]:
 
-
-Dado que este requerimiento excede tanto la memoria RAM física disponible como la cuota asignada a `/dev/shm` en nuestro entorno de ejecución (cuyas especificaciones detalladas se describen en la Sección 4.1), y descartando el uso de memoria virtual (*swap*) en disco por provocar degradación catastrófica debido al *page fault thrashing*, se implementó un sistema de **activación automática Out-of-Core (External Merge Sort)** en dos fases:
-
-1. **Fase 1 (Generación de *Runs* Paralelos):** Se define un ***run*** como un bloque contiguo de datos de tamaño $M$ ($M \ll N$) que cabe íntegramente en la memoria compartida, es ordenado de forma independiente en paralelo y volcado a disco en formato binario compacto. El archivo `matriz_a.txt` se lee en *streaming* por bloques de tamaño $M$, se ordenan en paralelo mediante Sample Sort multihilo y se escriben temporalmente en el directorio `runs/run_XXXX.bin` (archivos que son eliminados automáticamente al finalizar la ejecución). La complejidad espacial en esta fase queda acotada a $\mathcal{O}(M) \approx 1.5\text{ GiB}$.
-
-
-2. **Fase 2 (K-Way Merge en Streaming):** Los $K = \lceil N/M \rceil$ *runs* ordenados en disco se unifican concurrentemente utilizando una estructura de datos de cola de prioridad mínima (*Min-Heap* o *Tournament Tree*). Al mantener únicamente un búfer de lectura por cada *run* ($B = 1\text{ MB}$), el consumo de memoria RAM en esta etapa se mantiene estrictamente acotado a $\mathcal{O}(K \cdot B) < 50\text{ MB}$, emitiendo el flujo globalmente ordenado hacia el archivo destino.
-
-
+1. **Fase 1 (Generación de *Runs* Paralelos):** Se define un ***run*** como un bloque contiguo de datos de tamaño $M$ ($M \ll N$) que cabe íntegramente en la memoria compartida, es ordenado de forma independiente en paralelo y volcado a disco en formato binario compacto [13, 14]. El archivo `matriz_a.txt` se lee en *streaming* por bloques de tamaño $M$, se ordenan en paralelo mediante Sample Sort multihilo y se escriben temporalmente en el directorio `runs/run_XXXX.bin` (archivos que son eliminados automáticamente al finalizar la ejecución). La complejidad espacial en esta fase queda acotada a $\mathcal{O}(M) \approx 1.5\text{ GiB}$ [17].
+2. **Fase 2 (K-Way Merge en Streaming):** Los $K = \lceil N/M \rceil$ *runs* ordenados en disco se unifican concurrentemente utilizando una estructura de datos de cola de prioridad mínima (*Min-Heap* o *Tournament Tree*) [13, 16]. Al mantener únicamente un búfer de lectura por cada *run* ($B = 1\text{ MB}$), el consumo de memoria RAM en esta etapa se mantiene estrictamente acotado a $\mathcal{O}(K \cdot B) < 50\text{ MB}$, emitiendo el flujo globalmente ordenado hacia el archivo destino [14, 15].
 
 ### 3.4 Modelado Analítico y Ley de Amdahl
 
-Para justificar formalmente las métricas de rendimiento y los límites de escalabilidad del sistema, el tiempo total de ejecución se modeló mediante la **Ley de Amdahl**.
+Para justificar formalmente las métricas de rendimiento y los límites de escalabilidad del sistema, el tiempo total de ejecución se modeló mediante la **Ley de Amdahl** [4, 19, 20].
 
 #### Derivación de las Fracciones Secuencial ($s$) y Paralela ($p$)
 
 A partir de las mediciones empíricas de tiempo de pared (*wall-clock time*) sobre la ejecución completa de `matriz_a.txt` con $K = 12$ *runs* y $12$ hilos lógicos, se aislaron los tiempos de cada etapa del *pipeline*:
 
 * **Componentes secuenciales:** El análisis léxico y lectura de entrada desde disco ($T_{\text{lectura}} \approx 120.72\text{ s}$) sumado a la mezcla final y escritura secuencial del *K-Way Merge* ($T_{\text{merge}} \approx 23.99\text{ s}$) totalizan un tiempo secuencial fijo de $T_{\text{sec}} \approx 144.71\text{ s}$.
-
-
 * **Componente paralelizable:** El ordenamiento en memoria de los $12$ *runs* mediante Sample Sort consumió $T_{\text{sort}}(12) \approx 81.53\text{ s}$. Considerando el factor de aceleración interno medido para el ordenamiento local de cubetas ($\approx 5.8\times$ respecto a la ejecución monohilo), el tiempo equivalente de ordenamiento secuencial puro se estima en $T_{\text{sort}}(1) \approx 81.53 \times 5.8 = 472.87\text{ s}$.
 
-
-
-De este modo, el tiempo base de referencia monohilo es $T_{\text{total}}(1) = 144.71 + 472.87 = 617.58\text{ s}$, permitiendo obtener las proporciones exactas del sistema:
+De este modo, el tiempo base de referencia monohilo es $T_{\text{total}}(1) = 144.71 + 472.87 = 617.58\text{ s}$, permitiendo obtener las proporciones exactas del sistema [4, 19]:
 
 $$p = \frac{T_{\text{sort}}(1)}{T_{\text{total}}(1)} = \frac{472.87}{617.58} \approx 0.7657 \quad (76.57\%)$$
 
-
-
 $$s = 1 - p = 1 - 0.7657 = 0.2343 \quad (23.43\%)$$
-
-
 
 #### Cálculo de Aceleración y Cota Asintótica Máxima
 
-La expresión general de la Ley de Amdahl establece que la aceleración (*speedup*) $S(N)$ al emplear $N$ unidades de procesamiento está dada por:
+La expresión general de la Ley de Amdahl establece que la aceleración (*speedup*) $S(N)$ al emplear $N$ unidades de procesamiento está dada por [4, 20]:
 
 $$S(N) = \frac{1}{(1 - p) + \frac{p}{N}}$$
-
-
 
 Evaluando el modelo para los $N = 12$ hilos lógicos de nuestro equipo de referencia:
 
 $$S(12) = \frac{1}{(1 - 0.7657) + \frac{0.7657}{12}} = \frac{1}{0.2343 + 0.0638} = \frac{1}{0.2981} \approx 3.35\times$$
 
-
-
-Para determinar el límite teórico máximo de aceleración ($S_{\max}$) que podría alcanzar esta arquitectura si dispusiera de infinitos núcleos de procesamiento ($N \to \infty$), se evalúa el límite asintótico de la ecuación:
+Para determinar el límite teórico máximo de aceleración ($S_{\max}$) que podría alcanzar esta arquitectura si dispusiera de infinitos núcleos de procesamiento ($N \to \infty$), se evalúa el límite asintótico de la ecuación [19, 20]:
 
 $$S_{\max} = \lim_{N \to \infty} \frac{1}{(1 - p) + \frac{p}{N}} = \frac{1}{1 - p} = \frac{1}{0.2343} \approx 4.27\times$$
 
-
-
-Este resultado demuestra analíticamente que la aceleración global del sistema está acotada asintóticamente a $4.27\times$, debido al peso ineludible del $23.43\%$ del tiempo gobernado por las operaciones de entrada/salida secuenciales.
+Este resultado demuestra analíticamente que la aceleración global del sistema está acotada asintóticamente a $4.27\times$, debido al peso ineludible del $23.43\%$ del tiempo gobernado por las operaciones de entrada/salida secuenciales [4, 20].
 
 ### 3.5 Determinación Analítica y Empírica de Parámetros ($M^*$ y $P^*$)
 
 Para fundamentar la configuración operativa del programa —en estrecha relación con la arquitectura de hardware y el sistema operativo descritos en la Sección 4.1—, los parámetros críticos se determinaron combinando análisis de complejidad y validación heurística con diversos tamaños de bloque ($64\text{ MB}$, $256\text{ MB}$, $512\text{ MB}$, $1024\text{ MB}$ y $2048\text{ MB}$):
 
-* **Tamaño óptimo de chunks ($M^* \in [512\text{ MB}, 1024\text{ MB}]$):** El costo computacional de la fase de mezcla en un *K-Way Merge* es $\mathcal{O}(N \log_2 K)$, donde $K = \lceil N/M \rceil$ es el número de *runs* generados. Las pruebas empíricas demostraron que bloques muy pequeños (como $64\text{ MB}$) generan $191$ *runs*, incrementando la profundidad del *Min-Heap* y fragmentando las lecturas secuenciales en disco. Por el contrario, establecer $M = 1024\text{ MB}$ reduce el problema a solo $K = 12$ *runs* (profundidad de árbol $\lceil \log_2 12 \rceil = 4$), maximizando el aprovechamiento de la lectura anticipada (*read-ahead*) del kernel de Linux sobre el almacenamiento NVMe sin comprometer el límite físico de $7.5\text{ GiB}$ en `/dev/shm`.
-
-
-* **Número de hilos óptimo ($P^* = 12$):** A partir de los barridos experimentales de escalabilidad (con $1, 2, 4, 8$ y $12$ hilos) y la topología del procesador utilizado en la Sección 4.1, se fijó $P^* = 12$ para aprovechar la totalidad de los hilos lógicos (SMT). Esto permite solapar las latencias de fallos de caché durante el *scatter/gather* y saturar eficientemente el ancho de banda de la memoria principal sin provocar penalizaciones por cambios de contexto (*context switching*) excesivos en el planificador del sistema operativo.
-
+* **Tamaño óptimo de chunks ($M^* \in [512\text{ MB}, 1024\text{ MB}]$):** El costo computacional de la fase de mezcla en un *K-Way Merge* es $\mathcal{O}(N \log_2 K)$, donde $K = \lceil N/M \rceil$ es el número de *runs* generados [13, 16]. Las pruebas empíricas demostraron que bloques muy pequeños (como $64\text{ MB}$) generan $191$ *runs*, incrementando la profundidad del *Min-Heap* y fragmentando las lecturas secuenciales en disco [14, 17]. Por el contrario, establecer $M = 1024\text{ MB}$ reduce el problema a solo $K = 12$ *runs* (profundidad de árbol $\lceil \log_2 12 \rceil = 4$), maximizando el aprovechamiento de la lectura anticipada (*read-ahead*) del kernel de Linux sobre el almacenamiento NVMe sin comprometer el límite físico de $7.5\text{ GiB}$ en `/dev/shm` [5, 18].
+* **Número de hilos óptimo ($P^* = 12$):** A partir de los barridos experimentales de escalabilidad (con $1, 2, 4, 8$ y $12$ hilos) y la topología del procesador utilizado en la Sección 4.1, se fijó $P^* = 12$ para aprovechar la totalidad de los hilos lógicos (SMT) [4]. Esto permite solapar las latencias de fallos de caché durante el *scatter/gather* y saturar eficientemente el ancho de banda de la memoria principal sin provocar penalizaciones por cambios de contexto (*context switching*) excesivos en el planificador del sistema operativo [4, 6].
 
 ---
 
@@ -241,21 +224,21 @@ Archivo guardado   : salida.bin
 
 
 
-#### Evidencia Visual
+**Evidencia Visual**
 
-![Inicio de ejecución con chunks de 2048 MB y 12 hilos](Imagenes_reporte/2048_chunks_12_hilos_start.png)
+![Inicio de ejecución con chunks de 2048 MB y 12 hilos](Imagenes_reporte/2048_chunks_12_hilos_start.png)\
 *Imagen 1. El inicio del proceso al ejecutarse con 2048 MB de tamaño de chunk y a 12 hilos, la lectura es secuencial pero el ordenamiento de cada chunk es paralelo.*
 
-![Fin de la fase 1 e inicio de la fase 2](Imagenes_reporte/2048_chunks_12_hilos_fase2.png)
+![Fin de la fase 1 e inicio de la fase 2](Imagenes_reporte/2048_chunks_12_hilos_fase2.png)\
 *Imagen 2. Fin de la fase 1 e inicio de la fase 2.*
 
-![Fin de la fase 2](Imagenes_reporte/2048_chunks_12_hilos_fin.png)
+![Fin de la fase 2](Imagenes_reporte/2048_chunks_12_hilos_fin.png)\
 *Imagen 3. Fin de la fase 2, como se puede observar, el tiempo de ejecución de esta fase es la más rápida.*
 
-![Ejecución con chunks de 1024 MB](Imagenes_reporte/1024_chunks_12_hilos_start.png)
+![Ejecución con chunks de 1024 MB](Imagenes_reporte/1024_chunks_12_hilos_start.png)\
 *Imagen 4. Mismo proceso en la fase 1, ejecutándose en chunks de 1024 MB.*
 
-![Captura de la consola y validación](Imagenes_reporte/captura_consola.png)
+![Captura de la consola y validación](Imagenes_reporte/captura_consola.png)\
 *Imagen 5. Captura de la terminal al ejecutar el ordenamiento y con el comando de validación del ordenamiento.*
 
 ---
@@ -267,6 +250,7 @@ Archivo guardado   : salida.bin
 La ejecución experimental sobre la matriz `matriz_a.txt` ($40,000 \times 40,000 = 1.6 \times 10^9$ valores de tipo `double`) permitió validar la eficiencia del diseño híbrido *Out-of-Core* frente a distintas configuraciones de tamaño de bloque ($M$) y grado de paralelismo ($P$):
 
 Tabla 1. Resultados generados por las ejecuciones de ambos 1024 MB y 2048 MB de tamaño de chunk con 12 hilos, el tiempo optimo fue el de 2048 MB. 
+
 | Configuración ($M$ / Hilos) | *Runs* Generados ($K$) | Tiempo Fase 1 (Lectura + Sort) | Tiempo Fase 2 (*K-Way Merge*) | Tiempo Total de Pared | Throughput *K-Way Merge* |
 | --- | --- | --- | --- | --- | --- |
 | **1024 MB / 12 hilos**| 12| 195.24 s| 29.65 s| **224.88 s (~3.75 min)**| 53.97 M val/s|
@@ -345,5 +329,6 @@ Los $1,600,000,000$ valores de `matriz_a.txt` fueron ordenados de forma ascenden
 [25] "Techniques to handle Thrashing," GeeksforGeeks. [Online]. Available: [https://www.geeksforgeeks.org/operating-systems/techniques-to-handle-thrashing/](https://www.geeksforgeeks.org/operating-systems/techniques-to-handle-thrashing/).
 
 [26] Lenovo México, "¿Qué es el thrashing?," Glosario de Tecnología. [Online]. Available: [https://www.lenovo.com/mx/es/glosario/thrashing/](https://www.lenovo.com/mx/es/glosario/thrashing/).
+
 ---
 

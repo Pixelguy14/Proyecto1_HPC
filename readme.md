@@ -128,3 +128,9 @@ entrega: se genera al ejecutar el programa.
 ## Licencia
 
 [LICENCIA MIT](LICENSE)
+
+## Compilar el PDF
+
+```bash
+pandoc Proyecto_1_HPC.md -o Proyecto_1_HPC.pdf --pdf-engine=xelatex -V geometry:margin=2cm
+```
