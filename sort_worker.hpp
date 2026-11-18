@@ -15,7 +15,7 @@
 // Parametros que recibe cada hilo. worker_id se usa ahora para depuracion y
 // en el Sprint 4 se ampliara con el ID de proceso.
 struct WorkerArgs {
-    double* data = nullptr;
+    float* data = nullptr;
     std::size_t begin = 0;  // primer elemento del rango (inclusive)
     std::size_t end = 0;    // ultimo elemento del rango (exclusivo)
     std::size_t worker_id = 0;

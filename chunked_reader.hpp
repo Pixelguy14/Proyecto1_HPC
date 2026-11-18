@@ -26,7 +26,7 @@
 // Uso tipico:
 //   ChunkedTextReader reader;
 //   if (!reader.open(path)) return false;
-//   std::vector<double> buffer(chunk_values);
+//   std::vector<float> buffer(chunk_values);
 //   std::size_t count = 0;
 //   while (reader.next(buffer.data(), buffer.size(), count) && count > 0) {
 //       procesar(buffer.data(), count);
@@ -54,7 +54,7 @@ public:
     // Lee hasta `capacity` valores en `dst` y deja en `count` cuantos leyo.
     // Devuelve false solo si encuentra un token invalido o demasiado largo.
     // Al llegar al final del archivo devuelve true con count == 0.
-    bool next(double* dst, std::size_t capacity, std::size_t& count);
+    bool next(float* dst, std::size_t capacity, std::size_t& count);
 
     bool eof() const { return cursor_ >= size_; }
     std::size_t file_size() const { return size_; }

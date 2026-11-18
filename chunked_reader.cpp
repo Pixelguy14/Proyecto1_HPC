@@ -116,7 +116,7 @@ void ChunkedTextReader::release_processed_pages() {
     }
 }
 
-bool ChunkedTextReader::next(double* dst, std::size_t capacity,
+bool ChunkedTextReader::next(float* dst, std::size_t capacity,
                              std::size_t& count) {
     count = 0;
     if (dst == nullptr || capacity == 0) {
@@ -131,7 +131,7 @@ bool ChunkedTextReader::next(double* dst, std::size_t capacity,
     const char* const begin = base_;
     const char* p = base_ + cursor_;
     const char* const end = base_ + size_;
-    char token[64];  // cualquier double cabe de sobra
+    char token[64];  // cualquier float cabe de sobra
 
     while (count < capacity && p < end) {
         while (p < end && is_separator(*p)) ++p;
@@ -155,7 +155,7 @@ bool ChunkedTextReader::next(double* dst, std::size_t capacity,
         token[len] = '\0';
 
         char* next = nullptr;
-        const double value = std::strtod(token, &next);
+        const float value = std::strtod(token, &next);
         if (next == token || *next != '\0') {
             std::fprintf(stderr,
                          "ChunkedTextReader::next: valor invalido \"%s\" en "

@@ -30,7 +30,7 @@
 // Se usa para imprimir el resumen y para decidir si la corrida fue correcta.
 struct ParallelSortStats {
     // Tiempo de pared del bloque completo: crear hilos + ordenar + join.
-    double sort_ms = 0.0;
+    float sort_ms = 0.0;
 
     // Hilos que pthread_create() logro crear.
     std::size_t created_workers = 0;
@@ -48,7 +48,7 @@ struct ParallelSortStats {
 // (a traves de sort_worker()) y marca su avance en `control`.
 //
 // Parametros:
-//   data         Arreglo de `n` doubles. Debe ser memoria compartida o al menos
+//   data         Arreglo de `n` floats. Debe ser memoria compartida o al menos
 //                permanecer valida hasta que la funcion retorne.
 //   n            Numero total de elementos.
 //   num_threads  Cantidad de hilos/bloques. Debe ser > 0.
@@ -77,7 +77,7 @@ struct ParallelSortStats {
 //   - El unico recurso compartido que se modifica es completed_workers, y se
 //     protege con el mutex process-shared de `control`.
 // ---------------------------------------------------------------------------
-bool parallel_sort_chunks(double* data, std::size_t n,
+bool parallel_sort_chunks(float* data, std::size_t n,
                           std::size_t num_threads, SharedControl* control,
                           ParallelSortStats& stats);
 
@@ -113,7 +113,7 @@ bool parallel_sort_chunks(double* data, std::size_t n,
 //   Cada rango [offsets[b], offsets[b + 1]) queda ordenado de forma ascendente.
 //   No se modifica ningun elemento fuera de esos rangos.
 // ---------------------------------------------------------------------------
-bool parallel_sort_buckets(double* data, const std::size_t* offsets,
+bool parallel_sort_buckets(float* data, const std::size_t* offsets,
                            std::size_t num_buckets, std::size_t num_workers,
                            SharedControl* control, ParallelSortStats& stats);
 

@@ -30,11 +30,11 @@
 // Resultado de una corrida de sample_sort_parallel().
 // Los tiempos se reportan por etapa para poder analizarlos en el reporte.
 struct ScatterGatherStats {
-    double plan_ms = 0.0;     // muestreo + ordenar muestra + splitters
-    double count_ms = 0.0;    // conteo de elementos por cubeta
-    double scatter_ms = 0.0;  // copia de cada elemento a su cubeta
-    double sort_ms = 0.0;     // orden local de las cubetas (paralelo)
-    double total_ms = 0.0;    // plan + conteo + scatter + orden local
+    float plan_ms = 0.0;     // muestreo + ordenar muestra + splitters
+    float count_ms = 0.0;    // conteo de elementos por cubeta
+    float scatter_ms = 0.0;  // copia de cada elemento a su cubeta
+    float sort_ms = 0.0;     // orden local de las cubetas (paralelo)
+    float total_ms = 0.0;    // plan + conteo + scatter + orden local
 
     std::size_t num_buckets = 0;
     std::size_t num_splitters = 0;
@@ -53,8 +53,8 @@ struct ScatterGatherStats {
 // `output`. No modifica `input`.
 //
 // Parametros:
-//   input        Arreglo de entrada de `n` doubles.
-//   output       Buffer de salida de `n` doubles. Debe ser distinto de input:
+//   input        Arreglo de entrada de `n` floats.
+//   output       Buffer de salida de `n` floats. Debe ser distinto de input:
 //                el scatter lee input mientras escribe output.
 //   n            Numero de elementos.
 //   num_buckets  Cantidad de cubetas y de workers. Debe ser >= 2.
@@ -71,7 +71,7 @@ struct ScatterGatherStats {
 //
 // Precondiciones:
 //   - input y output no se solapan.
-//   - output tiene espacio para n doubles.
+//   - output tiene espacio para n floats.
 //   - num_buckets es razonable para el equipo (idealmente <= nucleos y <= n).
 //
 // Postcondiciones:
@@ -85,7 +85,7 @@ struct ScatterGatherStats {
 //     la etapa paralela y la que domina el tiempo.
 //   - Cada cubeta se ordena con merge_sort_range(), sin std::sort.
 // ---------------------------------------------------------------------------
-bool sample_sort_parallel(const double* input, double* output, std::size_t n,
+bool sample_sort_parallel(const float* input, float* output, std::size_t n,
                           std::size_t num_buckets, std::size_t sample_size,
                           std::uint64_t seed, SharedControl* control,
                           ScatterGatherStats& stats);

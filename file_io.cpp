@@ -14,7 +14,7 @@ namespace {
 
 const char kBinMagic[8] = {'M', 'A', 'T', 'B', 'I', 'N', '1', '\0'};
 constexpr std::uint32_t kBinVersion = 1;
-constexpr std::uint32_t kBinDtypeDouble = 8;
+constexpr std::uint32_t kBinDtypefloat = 8;
 
 // Compara el final de `path` con `suffix` sin distinguir mayusculas.
 bool ends_with_ci(const char* path, const char* suffix) {
@@ -35,7 +35,7 @@ bool ends_with_ci(const char* path, const char* suffix) {
 }
 
 // Escritura de texto generica. `separator` es ',' para CSV y ' ' para TXT.
-bool save_text(const char* path, const double* data, std::size_t rows,
+bool save_text(const char* path, const float* data, std::size_t rows,
                std::size_t cols, char separator, const char* format) {
     if (path == nullptr || cols == 0 || format == nullptr) {
         std::fprintf(stderr, "save_text: parametros invalidos\n");
@@ -78,13 +78,13 @@ bool save_text(const char* path, const double* data, std::size_t rows,
 
 }  // namespace
 
-bool save_csv(const char* path, const double* data, std::size_t rows,
+bool save_csv(const char* path, const float* data, std::size_t rows,
               std::size_t cols) {
     // Se conserva el comportamiento historico: comas y %.17g.
     return save_text(path, data, rows, cols, ',', "%.17g");
 }
 
-bool save_matrix(const char* path, const double* data, std::size_t rows,
+bool save_matrix(const char* path, const float* data, std::size_t rows,
                  std::size_t cols) {
     if (path == nullptr) {
         std::fprintf(stderr, "save_matrix: ruta nula\n");
@@ -104,7 +104,7 @@ bool save_matrix(const char* path, const double* data, std::size_t rows,
     return save_text(path, data, rows, cols, ',', "%.17g");
 }
 
-bool save_bin(const char* path, const double* data, std::size_t rows,
+bool save_bin(const char* path, const float* data, std::size_t rows,
               std::size_t cols) {
     if (path == nullptr || cols == 0) {
         std::fprintf(stderr, "save_bin: parametros invalidos\n");
@@ -131,7 +131,7 @@ bool save_bin(const char* path, const double* data, std::size_t rows,
     BinHeader header{};
     std::memcpy(header.magic, kBinMagic, sizeof(kBinMagic));
     header.version = kBinVersion;
-    header.dtype = kBinDtypeDouble;
+    header.dtype = kBinDtypefloat;
     header.rows = static_cast<std::uint64_t>(rows);
     header.cols = static_cast<std::uint64_t>(cols);
     header.count = static_cast<std::uint64_t>(total);
@@ -139,11 +139,11 @@ bool save_bin(const char* path, const double* data, std::size_t rows,
     bool ok = (std::fwrite(&header, sizeof(header), 1, file) == 1);
 
     // Escritura por bloques para no pedir un fwrite gigantesco de una vez.
-    constexpr std::size_t kChunk = 1 << 20;  // 1 M doubles = 8 MB
+    constexpr std::size_t kChunk = 1 << 20;  // 1 M floats = 8 MB
     for (std::size_t offset = 0; ok && offset < total; offset += kChunk) {
         const std::size_t n =
             (total - offset < kChunk) ? (total - offset) : kChunk;
-        if (std::fwrite(data + offset, sizeof(double), n, file) != n) {
+        if (std::fwrite(data + offset, sizeof(float), n, file) != n) {
             ok = false;
         }
     }
@@ -189,7 +189,7 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
         std::fclose(file);
         return false;
     }
-    if (header.dtype != kBinDtypeDouble) {
+    if (header.dtype != kBinDtypefloat) {
         std::fprintf(stderr, "verify_bin: dtype %u no soportado en '%s'\n",
                      header.dtype, path);
         std::fclose(file);
@@ -231,14 +231,14 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
     }
 
     const std::size_t total = static_cast<std::size_t>(header.count);
-    constexpr std::size_t kChunk = 1 << 20;  // 1 M doubles = 8 MB
-    std::vector<double> buffer(kChunk);
+    constexpr std::size_t kChunk = 1 << 20;  // 1 M floats = 8 MB
+    std::vector<float> buffer(kChunk);
 
     bool sorted = true;
     bool have_prev = false;
-    double prev = 0.0;
-    double min_value = 0.0;
-    double max_value = 0.0;
+    float prev = 0.0;
+    float min_value = 0.0;
+    float max_value = 0.0;
     std::uint64_t checksum = 0;
     std::size_t read_total = 0;
 
@@ -246,7 +246,7 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
         const std::size_t want =
             (total - read_total < kChunk) ? (total - read_total) : kChunk;
         const std::size_t got =
-            std::fread(buffer.data(), sizeof(double), want, file);
+            std::fread(buffer.data(), sizeof(float), want, file);
         if (got != want) {
             std::fprintf(stderr,
                          "verify_bin: lectura incompleta en '%s' (%zu de %zu "
@@ -257,7 +257,7 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
         }
 
         for (std::size_t i = 0; i < got; ++i) {
-            const double v = buffer[i];
+            const float v = buffer[i];
             if (!have_prev) {
                 min_value = v;
                 max_value = v;
@@ -276,7 +276,7 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
         read_total += got;
     }
 
-    // No debe haber datos extra despues de count doubles.
+    // No debe haber datos extra despues de count floats.
     const int extra = std::fgetc(file);
     if (extra != EOF) {
         std::fprintf(stderr, "verify_bin: datos extra al final de '%s'\n",
@@ -301,7 +301,7 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
     return sorted && read_total == total;
 }
 
-bool is_sorted_ascending(const double* data, std::size_t n) {
+bool is_sorted_ascending(const float* data, std::size_t n) {
     if (n < 2) return true;
     if (data == nullptr) return false;
     for (std::size_t i = 1; i < n; ++i) {

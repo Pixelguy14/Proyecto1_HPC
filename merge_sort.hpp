@@ -15,13 +15,13 @@
 
 // Ordena [begin, end) de data. temp debe tener espacio para end - begin.
 // Se expone para poder reutilizarla y para que sea facil de evaluar.
-void merge(double* data, std::size_t begin, std::size_t mid, std::size_t end,
-           double* temp);
+void merge(float* data, std::size_t begin, std::size_t mid, std::size_t end,
+           float* temp);
 
 // Ordena todo el arreglo (equivalente a mergeSort de la planeacion).
-void merge_sort(double* data, std::size_t n);
+void merge_sort(float* data, std::size_t n);
 
 // Ordena solo [begin, end). Reserva un buffer temporal del tamano del rango.
-void merge_sort_range(double* data, std::size_t begin, std::size_t end);
+void merge_sort_range(float* data, std::size_t begin, std::size_t end);
 
 #endif  // MERGE_SORT_HPP

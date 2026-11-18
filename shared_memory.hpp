@@ -13,7 +13,7 @@
 //
 //   SharedMemory data_shm;
 //   shared_create(data_shm, "/proyecto1_hpc_data", bytes);   // crea + mapea
-//   double* data = static_cast<double*>(data_shm.addr);      // usa
+//   float* data = static_cast<float*>(data_shm.addr);      // usa
 //   ...
 //   shared_release(data_shm, true);                           // desmapea + unlink
 //

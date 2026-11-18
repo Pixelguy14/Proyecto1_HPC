@@ -15,19 +15,19 @@
 #include <vector>
 
 // Matriz en un solo bloque contiguo, almacenada por filas (row-major).
-// std::vector<double> se usa solo como contenedor de memoria contigua.
+// std::vector<float> se usa solo como contenedor de memoria contigua.
 struct Matrix {
     std::size_t rows = 0;
     std::size_t cols = 0;
-    std::vector<double> data;  // data[r * cols + c]
+    std::vector<float> data;  // data[r * cols + c]
 
     // Reserva el espacio exacto cuando ya se conocen las dimensiones.
     void reserve(std::size_t total) { data.reserve(total); }
 
     std::size_t size() const { return data.size(); }
 
-    double& at(std::size_t r, std::size_t c) { return data[r * cols + c]; }
-    const double& at(std::size_t r, std::size_t c) const {
+    float& at(std::size_t r, std::size_t c) { return data[r * cols + c]; }
+    const float& at(std::size_t r, std::size_t c) const {
         return data[r * cols + c];
     }
 };
@@ -49,14 +49,14 @@ bool parse_csv_buffer(const char* buf, std::size_t size, std::size_t rows,
 // Solo escribe hasta `capacity` elementos; si el CSV trae mas, no desborda.
 // `written` recibe cuantos valores se encontraron en total.
 // Devuelve false solo si hay un valor con formato invalido.
-bool parse_csv_into(const char* buf, std::size_t size, double* dst,
+bool parse_csv_into(const char* buf, std::size_t size, float* dst,
                     std::size_t capacity, std::size_t& written);
 
 // Igual que load_csv(), pero el destino es un puntero ya reservado.
 // Lee por chunks directamente en `dst`, sin buffer intermedio del texto.
 // chunk_bytes controla el tamano del bloque de lectura (0 usa 64 MB).
 // Devuelve true solo si se leyeron exactamente `capacity` valores.
-bool load_csv_into(const char* path, double* dst, std::size_t capacity,
+bool load_csv_into(const char* path, float* dst, std::size_t capacity,
                    std::size_t chunk_bytes, std::size_t& written);
 
 #endif  // CSV_PARSER_HPP

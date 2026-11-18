@@ -60,7 +60,7 @@ void* thread_entry(void* raw) {
 // son los mismos para todos los hilos y solo se leen, por lo que no necesitan
 // proteccion.
 struct BucketTask {
-    double* data = nullptr;
+    float* data = nullptr;
     const std::size_t* offsets = nullptr;
     std::size_t num_buckets = 0;
     std::size_t worker_id = 0;
@@ -101,7 +101,7 @@ void* bucket_thread_entry(void* raw) {
 //   2. Calcular el rango de cada hilo y crear un pthread por rango.
 //   3. Esperar (join) a todos los hilos que se crearon.
 //   4. Recolectar estadisticas y decidir si la corrida fue completa.
-bool parallel_sort_chunks(double* data, std::size_t n,
+bool parallel_sort_chunks(float* data, std::size_t n,
                           std::size_t num_threads, SharedControl* control,
                           ParallelSortStats& stats) {
     // Se reinicia la salida desde el principio. Si la validacion falla, el
@@ -168,7 +168,7 @@ bool parallel_sort_chunks(double* data, std::size_t n,
     const auto end = std::chrono::steady_clock::now();
 
     stats.sort_ms =
-        std::chrono::duration<double, std::milli>(end - begin).count();
+        std::chrono::duration<float, std::milli>(end - begin).count();
     stats.created_workers = created;
 
     // Se lee despues de todos los join, asi que ya no hay escrituras en curso.
@@ -186,7 +186,7 @@ bool parallel_sort_chunks(double* data, std::size_t n,
 // Es la version del Sprint 3: en lugar de dividir [0, n) en bloques iguales,
 // recibe offsets calculados por el scatter. Las cubetas pueden tener tamanos
 // muy distintos, asi que el reparto se hace por turnos y no por rangos fijos.
-bool parallel_sort_buckets(double* data, const std::size_t* offsets,
+bool parallel_sort_buckets(float* data, const std::size_t* offsets,
                            std::size_t num_buckets, std::size_t num_workers,
                            SharedControl* control, ParallelSortStats& stats) {
     stats = ParallelSortStats{};
@@ -247,7 +247,7 @@ bool parallel_sort_buckets(double* data, const std::size_t* offsets,
     const auto end = std::chrono::steady_clock::now();
 
     stats.sort_ms =
-        std::chrono::duration<double, std::milli>(end - begin).count();
+        std::chrono::duration<float, std::milli>(end - begin).count();
     stats.created_workers = created;
     stats.completed_workers = control->completed_workers;
 

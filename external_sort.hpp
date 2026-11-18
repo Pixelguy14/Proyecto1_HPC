@@ -3,7 +3,7 @@
 //
 // Proyecto 1 - Topicos de HPC
 // Fase 2: Procesar matrices que exceden la memoria fisica (RAM y /dev/shm)
-// como matriz_a.txt (1.6 G doubles = 12.8 GB crudos, 25.6 GB con temp).
+// como matriz_a.txt (1.6 G floats = 12.8 GB crudos, 25.6 GB con temp).
 //
 // Arquitectura del algoritmo (External Merge Sort en 2 Fases):
 //
@@ -40,19 +40,19 @@ struct ExternalSortStats {
     std::size_t chunk_mb = 0;           // Tamano de cada run en MB
 
     // Tiempos de ejecucion (en milisegundos)
-    double read_and_runs_ms = 0.0;     // Tiempo total de Fase 1 (I/O + Sort de runs)
-    double avg_run_ms = 0.0;           // Tiempo promedio de ordenamiento por run
-    double stddev_run_ms = 0.0;        // Desviacion estandar del tiempo por run
-    double min_run_ms = 0.0;           // Tiempo del run mas rapido
-    double max_run_ms = 0.0;           // Tiempo del run mas lento
-    double merge_ms = 0.0;             // Tiempo total de Fase 2 (K-Way Merge)
-    double total_ms = 0.0;             // Tiempo de pared total (Fase 1 + Fase 2)
+    float read_and_runs_ms = 0.0;     // Tiempo total de Fase 1 (I/O + Sort de runs)
+    float avg_run_ms = 0.0;           // Tiempo promedio de ordenamiento por run
+    float stddev_run_ms = 0.0;        // Desviacion estandar del tiempo por run
+    float min_run_ms = 0.0;           // Tiempo del run mas rapido
+    float max_run_ms = 0.0;           // Tiempo del run mas lento
+    float merge_ms = 0.0;             // Tiempo total de Fase 2 (K-Way Merge)
+    float total_ms = 0.0;             // Tiempo de pared total (Fase 1 + Fase 2)
 
     // Verificacion de integridad
     std::uint64_t input_checksum = 0;  // Suma de bits de los datos leidos
     std::uint64_t output_checksum = 0; // Suma de bits de los datos emitidos
-    double min_value = 0.0;            // Valor minimo global observado
-    double max_value = 0.0;            // Valor maximo global observado
+    float min_value = 0.0;            // Valor minimo global observado
+    float max_value = 0.0;            // Valor maximo global observado
     bool sorted = false;               // Confirmacion de orden monotono no decreciente
     bool checksum_ok = false;          // input_checksum == output_checksum
     bool saved = false;                // Se guardo exitosamente en output_path

@@ -24,14 +24,14 @@
 
 namespace {
 
-double elapsed_ms(std::chrono::steady_clock::time_point begin,
+float elapsed_ms(std::chrono::steady_clock::time_point begin,
                   std::chrono::steady_clock::time_point end) {
-    return std::chrono::duration<double, std::milli>(end - begin).count();
+    return std::chrono::duration<float, std::milli>(end - begin).count();
 }
 
 }  // namespace
 
-bool sample_sort_parallel(const double* input, double* output, std::size_t n,
+bool sample_sort_parallel(const float* input, float* output, std::size_t n,
                           std::size_t num_buckets, std::size_t sample_size,
                           std::uint64_t seed, SharedControl* control,
                           ScatterGatherStats& stats) {
@@ -55,7 +55,7 @@ bool sample_sort_parallel(const double* input, double* output, std::size_t n,
     // -----------------------------------------------------------------------
     // 1. Plan: muestra, ordenamiento de la muestra y splitters
     // -----------------------------------------------------------------------
-    std::vector<double> splitters;
+    std::vector<float> splitters;
     const auto plan_begin = std::chrono::steady_clock::now();
 
     if (!build_sample_plan(input, n, sample_size, num_buckets, seed,

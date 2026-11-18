@@ -48,7 +48,7 @@ std::uint64_t XorShift64::next() {
 //
 // Esto garantiza que cada elemento del arreglo tenga la misma probabilidad de
 // terminar en la muestra, sin reemplazo y sin conocer el total de antemano.
-std::size_t random_sample(const double* data, std::size_t n, double* sample,
+std::size_t random_sample(const float* data, std::size_t n, float* sample,
                           std::size_t sample_size, std::uint64_t seed) {
     if (data == nullptr || sample == nullptr || n == 0 || sample_size == 0) {
         return 0;
@@ -84,8 +84,8 @@ std::size_t random_sample(const double* data, std::size_t n, double* sample,
 // fronteras son una buena aproximacion de los quantiles del arreglo completo.
 // Esa es la base de Sample Sort: con datos uniformes, cada cubeta recibe una
 // cantidad similar de elementos.
-std::size_t choose_splitters(double* sample, std::size_t sample_size,
-                             std::size_t num_buckets, double* splitters) {
+std::size_t choose_splitters(float* sample, std::size_t sample_size,
+                             std::size_t num_buckets, float* splitters) {
     if (sample == nullptr || splitters == nullptr || sample_size == 0 ||
         num_buckets < 2) {
         return 0;
@@ -130,8 +130,8 @@ std::size_t choose_splitters(double* sample, std::size_t sample_size,
 //   - Todos los indices < low tienen splitter < value.
 //   - Todos los indices >= high tienen splitter >= value.
 //   - low <= high siempre.
-std::size_t find_bucket(const double* splitters, std::size_t num_splitters,
-                        double value) {
+std::size_t find_bucket(const float* splitters, std::size_t num_splitters,
+                        float value) {
     if (splitters == nullptr || num_splitters == 0) {
         return 0;
     }
@@ -159,9 +159,9 @@ std::size_t find_bucket(const double* splitters, std::size_t num_splitters,
 // Es la funcion de conveniencia que usara el scatter. Deja el vector
 // `splitters` con exactamente num_buckets - 1 valores, listo para pasarse a
 // find_bucket().
-bool build_sample_plan(const double* data, std::size_t n,
+bool build_sample_plan(const float* data, std::size_t n,
                        std::size_t sample_size, std::size_t num_buckets,
-                       std::uint64_t seed, std::vector<double>& splitters) {
+                       std::uint64_t seed, std::vector<float>& splitters) {
     // La salida se limpia primero: si algo falla, el llamador no recibe un
     // vector con datos viejos de una corrida anterior.
     splitters.clear();
@@ -174,7 +174,7 @@ bool build_sample_plan(const double* data, std::size_t n,
     const std::size_t take = (sample_size < n) ? sample_size : n;
 
     // Solo se reserva espacio para la muestra, no para todo el arreglo.
-    std::vector<double> sample(take);
+    std::vector<float> sample(take);
 
     const std::size_t got =
         random_sample(data, n, sample.data(), take, seed);

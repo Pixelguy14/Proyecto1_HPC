@@ -36,15 +36,15 @@ namespace {
 // Constantes y utilidades de tiempo
 // ---------------------------------------------------------------------------
 constexpr char kBinMagic[8] = {'M', 'A', 'T', 'B', 'I', 'N', '1', '\0'};
-constexpr std::size_t kMergeBufferElements = 131072; // 1 MB por run (128K doubles)
+constexpr std::size_t kMergeBufferElements = 131072; // 1 MB por run (128K floats)
 constexpr std::size_t kOutBufferElements   = 262144; // 2 MB buffer de salida
 
-inline double ms_since(std::chrono::steady_clock::time_point begin) {
+inline float ms_since(std::chrono::steady_clock::time_point begin) {
     const auto end = std::chrono::steady_clock::now();
-    return std::chrono::duration<double, std::milli>(end - begin).count();
+    return std::chrono::duration<float, std::milli>(end - begin).count();
 }
 
-inline std::uint64_t checksum_bits_buffer(const double* data, std::size_t n) {
+inline std::uint64_t checksum_bits_buffer(const float* data, std::size_t n) {
     std::uint64_t sum = 0;
     for (std::size_t i = 0; i < n; ++i) {
         std::uint64_t bits = 0;
@@ -69,7 +69,7 @@ struct RunReader {
     std::size_t total_elements = 0;
     std::size_t elements_consumed = 0;
 
-    std::vector<double> buffer;
+    std::vector<float> buffer;
     std::size_t buf_pos = 0;
     std::size_t buf_count = 0;
 
@@ -110,7 +110,7 @@ struct RunReader {
         std::size_t want = total_elements - elements_consumed;
         if (want > buffer.size()) want = buffer.size();
 
-        const ssize_t bytes_to_read = static_cast<ssize_t>(want * sizeof(double));
+        const ssize_t bytes_to_read = static_cast<ssize_t>(want * sizeof(float));
         const ssize_t bytes_read = ::read(fd, buffer.data(), bytes_to_read);
         if (bytes_read <= 0) {
             buf_count = 0;
@@ -118,7 +118,7 @@ struct RunReader {
             return false;
         }
 
-        buf_count = static_cast<std::size_t>(bytes_read) / sizeof(double);
+        buf_count = static_cast<std::size_t>(bytes_read) / sizeof(float);
         buf_pos = 0;
         elements_consumed += buf_count;
         return buf_count > 0;
@@ -128,8 +128,8 @@ struct RunReader {
         return buf_pos < buf_count;
     }
 
-    inline double next() {
-        const double val = buffer[buf_pos++];
+    inline float next() {
+        const float val = buffer[buf_pos++];
         if (buf_pos >= buf_count) {
             refill();
         }
@@ -153,7 +153,7 @@ struct RunReader {
 // Nodo para el Min-Heap de K-Way Merge
 // ---------------------------------------------------------------------------
 struct HeapNode {
-    double value;
+    float value;
     std::size_t run_idx;
 
     // Mayor que para obtener un Min-Heap (el menor elemento en la cima)
@@ -187,11 +187,11 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     // Crear directorio temporal runs/
     ::mkdir("runs", 0755);
 
-    // Calcular capacidad del chunk en doubles
-    std::size_t chunk_values = chunk_bytes / sizeof(double);
+    // Calcular capacidad del chunk en floats
+    std::size_t chunk_values = chunk_bytes / sizeof(float);
     if (chunk_values == 0) chunk_values = 1;
     if (chunk_values > total_expected) chunk_values = total_expected;
-    const std::size_t allocated_chunk_bytes = chunk_values * sizeof(double);
+    const std::size_t allocated_chunk_bytes = chunk_values * sizeof(float);
 
     std::printf("\n\n");
     std::printf("--- FASE 1: Generacion y ordenamiento de runs en paralelo ---\n");
@@ -199,7 +199,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     std::printf("Archivo de entrada : %s\n", input_path);
     std::printf("Dimensiones        : %zu x %zu (%zu valores)\n", rows, cols, total_expected);
     std::printf("Tamano de run      : %.2f MB (%zu valores)\n",
-                static_cast<double>(allocated_chunk_bytes) / (1024.0 * 1024.0),
+                static_cast<float>(allocated_chunk_bytes) / (1024.0 * 1024.0),
                 chunk_values);
     std::printf("Hilos por run      : %zu (Sample Sort con memoria compartida)\n\n", num_threads);
 
@@ -230,8 +230,8 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
         return false;
     }
 
-    double* shm_data = static_cast<double*>(data_shm.addr);
-    double* shm_temp = static_cast<double*>(temp_shm.addr);
+    float* shm_data = static_cast<float*>(data_shm.addr);
+    float* shm_temp = static_cast<float*>(temp_shm.addr);
 
     // Lector por chunks del archivo de entrada original
     ChunkedTextReader reader;
@@ -244,7 +244,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     }
 
     std::vector<std::string> run_files;
-    std::vector<double> run_durations_ms;
+    std::vector<float> run_durations_ms;
     std::size_t total_read = 0;
     std::uint64_t accumulated_input_checksum = 0;
 
@@ -276,12 +276,12 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
                                            kSampleSize, kSeed, control, sg_stats);
         } else {
             // Caso borde: run muy pequeno, merge sort directo
-            std::memcpy(shm_temp, shm_data, count * sizeof(double));
+            std::memcpy(shm_temp, shm_data, count * sizeof(float));
             merge_sort(shm_temp, count);
             sort_ok = true;
         }
 
-        const double run_ms = ms_since(run_clock_begin);
+        const float run_ms = ms_since(run_clock_begin);
         run_durations_ms.push_back(run_ms);
 
         if (!sort_ok) {
@@ -306,7 +306,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
         header.count = static_cast<std::uint64_t>(count);
 
         if (std::fwrite(&header, sizeof(header), 1, run_fp) != 1 ||
-            std::fwrite(shm_temp, sizeof(double), count, run_fp) != count) {
+            std::fwrite(shm_temp, sizeof(float), count, run_fp) != count) {
             std::fprintf(stderr, "run_external_sort: error al escribir '%s'\n", run_filename.c_str());
             std::fclose(run_fp);
             break;
@@ -342,19 +342,19 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     }
 
     // Calcular estadisticas micro de los runs (promedio, desviacion estandar, min, max)
-    double sum_t = 0.0;
+    float sum_t = 0.0;
     stats.min_run_ms = run_durations_ms[0];
     stats.max_run_ms = run_durations_ms[0];
-    for (double t : run_durations_ms) {
+    for (float t : run_durations_ms) {
         sum_t += t;
         if (t < stats.min_run_ms) stats.min_run_ms = t;
         if (t > stats.max_run_ms) stats.max_run_ms = t;
     }
     stats.avg_run_ms = sum_t / run_durations_ms.size();
 
-    double sum_variance = 0.0;
-    for (double t : run_durations_ms) {
-        const double diff = t - stats.avg_run_ms;
+    float sum_variance = 0.0;
+    for (float t : run_durations_ms) {
+        const float diff = t - stats.avg_run_ms;
         sum_variance += diff * diff;
     }
     stats.stddev_run_ms = std::sqrt(sum_variance / run_durations_ms.size());
@@ -372,7 +372,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     std::printf("\n");
     std::printf("Runs a mezclar     : %zu\n", stats.num_runs);
     std::printf("Buffer por run     : %.2f MB\n",
-                static_cast<double>(kMergeBufferElements * sizeof(double)) / (1024.0 * 1024.0));
+                static_cast<float>(kMergeBufferElements * sizeof(float)) / (1024.0 * 1024.0));
     std::printf("Destino de salida  : %s\n\n", output_path != nullptr ? output_path : "(solo verificacion)");
 
     const auto phase2_begin = std::chrono::steady_clock::now();
@@ -399,7 +399,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     bool is_bin_out = false;
     bool is_txt_out = false;
     std::FILE* out_fp = nullptr;
-    std::vector<double> out_bin_buffer;
+    std::vector<float> out_bin_buffer;
     std::size_t out_bin_count = 0;
 
     if (output_path != nullptr) {
@@ -431,11 +431,11 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     // Streaming del K-Way Merge con verificacion en caliente
     std::size_t merged_count = 0;
     std::uint64_t accumulated_output_checksum = 0;
-    double prev_value = 0.0;
+    float prev_value = 0.0;
     bool is_first = true;
     bool sorted_check = true;
-    double min_v = 0.0;
-    double max_v = 0.0;
+    float min_v = 0.0;
+    float max_v = 0.0;
 
     const std::size_t progress_interval = total_expected / 10 == 0 ? 1 : total_expected / 10;
 
@@ -443,7 +443,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
         const HeapNode top = heap.top();
         heap.pop();
 
-        const double val = top.value;
+        const float val = top.value;
         const std::size_t run_idx = top.run_idx;
 
         // Verificacion en caliente de orden monotono no decreciente
@@ -471,7 +471,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
             if (is_bin_out) {
                 out_bin_buffer[out_bin_count++] = val;
                 if (out_bin_count >= out_bin_buffer.size()) {
-                    std::fwrite(out_bin_buffer.data(), sizeof(double), out_bin_count, out_fp);
+                    std::fwrite(out_bin_buffer.data(), sizeof(float), out_bin_count, out_fp);
                     out_bin_count = 0;
                 }
             } else if (is_txt_out) {
@@ -486,7 +486,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
         if (merged_count % progress_interval == 0 || merged_count == total_expected) {
             std::printf("  Progreso Merge: %zu/%zu valores (%.1f%%)\n",
                         merged_count, total_expected,
-                        100.0 * static_cast<double>(merged_count) / static_cast<double>(total_expected));
+                        100.0 * static_cast<float>(merged_count) / static_cast<float>(total_expected));
             std::fflush(stdout);
         }
 
@@ -499,7 +499,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     // Vaciar buffers de salida pendientes
     if (out_fp != nullptr) {
         if (is_bin_out && out_bin_count > 0) {
-            std::fwrite(out_bin_buffer.data(), sizeof(double), out_bin_count, out_fp);
+            std::fwrite(out_bin_buffer.data(), sizeof(float), out_bin_count, out_fp);
         }
         std::fclose(out_fp);
         stats.saved = true;

@@ -59,10 +59,10 @@ struct XorShift64 {
 // uniforme sin reemplazo, de tamano min(n, sample_size).
 //
 // Parametros:
-//   data         Arreglo de entrada de `n` doubles.
+//   data         Arreglo de entrada de `n` floats.
 //   n            Cantidad de elementos de entrada.
 //   sample       Buffer de salida con espacio para al menos
-//                min(n, sample_size) doubles.
+//                min(n, sample_size) floats.
 //   sample_size  Tamano deseado de la muestra.
 //   seed         Semilla del PRNG. La misma semilla produce la misma muestra.
 //
@@ -76,7 +76,7 @@ struct XorShift64 {
 //   - Usa reservoir sampling; no necesita conocer n de antemano para el
 //     algoritmo, aunque aqui n se recibe como parametro.
 // ---------------------------------------------------------------------------
-std::size_t random_sample(const double* data, std::size_t n, double* sample,
+std::size_t random_sample(const float* data, std::size_t n, float* sample,
                           std::size_t sample_size, std::uint64_t seed);
 
 // ---------------------------------------------------------------------------
@@ -100,8 +100,8 @@ std::size_t random_sample(const double* data, std::size_t n, double* sample,
 //     valido: las cubetas vacias simplemente no reciben elementos.
 //   - Los splitters quedan en orden no decreciente.
 // ---------------------------------------------------------------------------
-std::size_t choose_splitters(double* sample, std::size_t sample_size,
-                             std::size_t num_buckets, double* splitters);
+std::size_t choose_splitters(float* sample, std::size_t sample_size,
+                             std::size_t num_buckets, float* splitters);
 
 // ---------------------------------------------------------------------------
 // find_bucket - busqueda binaria del splitter
@@ -122,8 +122,8 @@ std::size_t choose_splitters(double* sample, std::size_t sample_size,
 //     que value. No usa std::upper_bound.
 //   - Si splitters == nullptr o num_splitters == 0, devuelve 0 (una sola cubeta).
 // ---------------------------------------------------------------------------
-std::size_t find_bucket(const double* splitters, std::size_t num_splitters,
-                        double value);
+std::size_t find_bucket(const float* splitters, std::size_t num_splitters,
+                        float value);
 
 // ---------------------------------------------------------------------------
 // build_sample_plan - paquete completo de muestreo + splitters
@@ -135,7 +135,7 @@ std::size_t find_bucket(const double* splitters, std::size_t num_splitters,
 //   4. Deja el resultado en `splitters`.
 //
 // Parametros:
-//   data         Arreglo de entrada de `n` doubles.
+//   data         Arreglo de entrada de `n` floats.
 //   n            Numero de elementos.
 //   sample_size  Tamano de la muestra (> 0).
 //   num_buckets  Cantidad de cubetas (>= 2).
@@ -149,10 +149,10 @@ std::size_t find_bucket(const double* splitters, std::size_t num_splitters,
 // Notas:
 //   - `splitters` se limpia al entrar, incluso si la funcion falla.
 //   - La muestra es local a la funcion; no se reserva memoria para todo el
-//     arreglo, solo para min(n, sample_size) doubles.
+//     arreglo, solo para min(n, sample_size) floats.
 // ---------------------------------------------------------------------------
-bool build_sample_plan(const double* data, std::size_t n,
+bool build_sample_plan(const float* data, std::size_t n,
                        std::size_t sample_size, std::size_t num_buckets,
-                       std::uint64_t seed, std::vector<double>& splitters);
+                       std::uint64_t seed, std::vector<float>& splitters);
 
 #endif  // SAMPLE_SORT_HPP

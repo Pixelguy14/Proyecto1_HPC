@@ -29,16 +29,16 @@ inline bool is_separator(char c) {
 // Valores por chunk por defecto si el llamador no especifica un tamano: 64 MB.
 constexpr std::size_t kDefaultChunkBytes = 64u * 1024u * 1024u;
 
-// Convierte bytes a cantidad de doubles, garantizando al menos un valor.
+// Convierte bytes a cantidad de floats, garantizando al menos un valor.
 std::size_t chunk_values_from_bytes(std::size_t chunk_bytes) {
     if (chunk_bytes == 0) chunk_bytes = kDefaultChunkBytes;
-    const std::size_t values = chunk_bytes / sizeof(double);
+    const std::size_t values = chunk_bytes / sizeof(float);
     return values == 0 ? 1 : values;
 }
 
 }  // namespace
 
-bool parse_csv_into(const char* buf, std::size_t size, double* dst,
+bool parse_csv_into(const char* buf, std::size_t size, float* dst,
                     std::size_t capacity, std::size_t& written) {
     written = 0;
     if (dst == nullptr && capacity != 0) {
@@ -53,7 +53,7 @@ bool parse_csv_into(const char* buf, std::size_t size, double* dst,
 
     const char* p = buf;
     const char* const end = buf + size;
-    char token[64];  // cualquier double cabe de sobra
+    char token[64];  // cualquier float cabe de sobra
     std::size_t count = 0;
 
     while (p < end) {
@@ -80,7 +80,7 @@ bool parse_csv_into(const char* buf, std::size_t size, double* dst,
         token[len] = '\0';
 
         char* next = nullptr;
-        const double value = std::strtod(token, &next);
+        const float value = std::strtod(token, &next);
         if (next == token || *next != '\0') {
             std::fprintf(stderr,
                          "parse_csv_into: valor invalido \"%s\" en el byte %zu\n",
@@ -159,7 +159,7 @@ bool load_csv(const char* path, std::size_t rows, std::size_t cols,
         std::fprintf(stderr,
                      "load_csv: no hay memoria para %zu valores (%.2f GB)\n",
                      expected,
-                     static_cast<double>(expected * sizeof(double)) /
+                     static_cast<float>(expected * sizeof(float)) /
                          (1024.0 * 1024.0 * 1024.0));
         out.data.clear();
         return false;
@@ -175,7 +175,7 @@ bool load_csv(const char* path, std::size_t rows, std::size_t cols,
     return true;
 }
 
-bool load_csv_into(const char* path, double* dst, std::size_t capacity,
+bool load_csv_into(const char* path, float* dst, std::size_t capacity,
                    std::size_t chunk_bytes, std::size_t& written) {
     written = 0;
     if (dst == nullptr && capacity != 0) {
@@ -209,7 +209,7 @@ bool load_csv_into(const char* path, double* dst, std::size_t capacity,
 
     // Debe haber exactamente `capacity` valores: un valor extra es un error.
     if (offset == capacity) {
-        double extra = 0.0;
+        float extra = 0.0;
         std::size_t count = 0;
         if (!reader.next(&extra, 1, count)) {
             reader.close();

@@ -12,7 +12,7 @@
 // kMatrizPath, kMatrizRows y kMatrizCols; no se pasan por linea de comandos.
 //
 // Este archivo es el punto de entrada que funciona con los modulos:
-//   - csv_parser:     convierte el CSV/TXT en doubles.
+//   - csv_parser:     convierte el CSV/TXT en floats.
 //   - chunked_reader: lee por chunks con mmap, sin cargar todo en heap.
 //   - merge_sort:     ordena el arreglo (secuencial o por rangos).
 //   - sort_worker:    ordena el bloque de un hilo.
@@ -154,21 +154,21 @@ bool parse_size(const char* text, std::size_t& value) {
 // ---------------------------------------------------------------------------
 // steady_clock es monotonico: no salta si el reloj del sistema se ajusta.
 // Se usa para medir duraciones, no para saber la hora.
-double milliseconds(std::chrono::steady_clock::time_point begin,
+float milliseconds(std::chrono::steady_clock::time_point begin,
                     std::chrono::steady_clock::time_point end) {
-    return std::chrono::duration<double, std::milli>(end - begin).count();
+    return std::chrono::duration<float, std::milli>(end - begin).count();
 }
 
 // ---------------------------------------------------------------------------
 // checksum_bits - huella independiente del orden
 // ---------------------------------------------------------------------------
-// Suma los bits de cada double como uint64_t. La suma de bits no depende del
+// Suma los bits de cada float como uint64_t. La suma de bits no depende del
 // orden de los elementos, asi que dos arreglos con el mismo multiset de valores
 // producen el mismo resultado aunque esten ordenados de forma distinta.
 //
 // Se usa para verificar que el Sample Sort no perdio ni duplico elementos sin
 // depender de la precision de una suma en punto flotante.
-std::uint64_t checksum_bits(const double* data, std::size_t n) {
+std::uint64_t checksum_bits(const float* data, std::size_t n) {
     std::uint64_t sum = 0;
     for (std::size_t i = 0; i < n; ++i) {
         std::uint64_t bits = 0;
@@ -212,7 +212,7 @@ std::size_t shm_free_bytes() {
 
 void print_gb(const char* label, std::size_t bytes) {
     std::fprintf(stderr, "  %-22s %8.2f GB\n", label,
-                 static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
+                 static_cast<float>(bytes) / (1024.0 * 1024.0 * 1024.0));
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +260,7 @@ bool check_memory(const char* mode, std::size_t shm_bytes,
 //
 // Parametros:
 //   path     Ruta del CSV, solo para mostrarla.
-//   data     Arreglo de rows * cols doubles ya cargado.
+//   data     Arreglo de rows * cols floats ya cargado.
 //   rows     Numero de filas.
 //   cols     Numero de columnas.
 //   read_ms  Tiempo que tardo la lectura, para calcular el rendimiento.
@@ -268,16 +268,16 @@ bool check_memory(const char* mode, std::size_t shm_bytes,
 // Precondicion: data != nullptr, rows > 0, cols > 0.
 // Nota: la suma es un checksum; se calcula antes de ordenar para comparar
 // contra el resultado ordenado si hace falta.
-void print_summary(const char* path, const double* data, std::size_t rows,
-                   std::size_t cols, double read_ms) {
+void print_summary(const char* path, const float* data, std::size_t rows,
+                   std::size_t cols, float read_ms) {
     const std::size_t total = rows * cols;
 
-    double minimo = data[0];
-    double maximo = data[0];
-    long double suma = 0.0L;
+    float minimo = data[0];
+    float maximo = data[0];
+    double suma = 0.0L;
 
     for (std::size_t i = 0; i < total; ++i) {
-        const double v = data[i];
+        const float v = data[i];
         if (v < minimo) minimo = v;
         if (v > maximo) maximo = v;
         suma += v;
@@ -289,7 +289,7 @@ void print_summary(const char* path, const double* data, std::size_t rows,
     std::printf("Tiempo lectura  : %.3f ms\n", read_ms);
     std::printf("Rendimiento     : %.2f M valores/s\n",
                 read_ms > 0.0
-                    ? (static_cast<double>(total) / (read_ms / 1000.0)) / 1e6
+                    ? (static_cast<float>(total) / (read_ms / 1000.0)) / 1e6
                     : 0.0);
 
     // Esquinas: [0][0], [0][cols-1], [rows-1][0], [rows-1][cols-1].
@@ -298,7 +298,7 @@ void print_summary(const char* path, const double* data, std::size_t rows,
                 rows - 1, data[(rows - 1) * cols],
                 rows - 1, cols - 1, data[total - 1]);
     std::printf("Min / Max       : %g / %g\n", minimo, maximo);
-    std::printf("Suma (checksum) : %Lg\n", suma);
+    std::printf("Suma (checksum) : %g\n", suma);
 }
 
 // ============================================================================
@@ -359,7 +359,7 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
         return false;
     }
     const std::size_t total      = rows * cols;
-    const std::size_t data_bytes = total * sizeof(double);
+    const std::size_t data_bytes = total * sizeof(float);
 
     // Comprobar si la matriz cabe en memoria fisica (RAM y /dev/shm).
     // Si no cabe y no se paso --forzar, se activa automaticamente el
@@ -371,13 +371,13 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
     if (!in_memory_fits) {
         std::printf("\n\n");
         std::printf("TEST: La matriz (%zu valores = %.2f GB) no cabe en memoria\n",
-                    total, static_cast<double>(data_bytes) / (1024.0 * 1024.0 * 1024.0));
+                    total, static_cast<float>(data_bytes) / (1024.0 * 1024.0 * 1024.0));
         std::printf("disponible (requiere %.2f GB en shm / %.2f GB en RAM;\n",
-                    static_cast<double>(data_bytes * 2) / (1024.0 * 1024.0 * 1024.0),
-                    static_cast<double>(data_bytes * 3) / (1024.0 * 1024.0 * 1024.0));
+                    static_cast<float>(data_bytes * 2) / (1024.0 * 1024.0 * 1024.0),
+                    static_cast<float>(data_bytes * 3) / (1024.0 * 1024.0 * 1024.0));
         std::printf("disponible: %.2f GB en shm / %.2f GB en RAM).\n",
-                    static_cast<double>(shm_free) / (1024.0 * 1024.0 * 1024.0),
-                    static_cast<double>(ram_free) / (1024.0 * 1024.0 * 1024.0));
+                    static_cast<float>(shm_free) / (1024.0 * 1024.0 * 1024.0),
+                    static_cast<float>(ram_free) / (1024.0 * 1024.0 * 1024.0));
         std::printf("-> Activando el Ordenamiento Externo Out-of-Core\n");
         std::printf("   (runs en disco + K-Way Merge con Min-Heap y streaming)\n");
         std::printf("\n\n");
@@ -418,8 +418,8 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
     }
 
     // Punteros a los arreglos en memoria compartida.
-    double* data = static_cast<double*>(data_shm.addr);
-    double* temp = static_cast<double*>(temp_shm.addr);
+    float* data = static_cast<float*>(data_shm.addr);
+    float* temp = static_cast<float*>(temp_shm.addr);
 
     // Lambda de limpieza unica para todas las rutas posteriores a init.
     // Se invoca al salir tanto en exito como en error.
@@ -448,7 +448,7 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
         return false;
     }
 
-    const double read_ms = milliseconds(read_begin, read_end);
+    const float read_ms = milliseconds(read_begin, read_end);
 
     // Imprimir resumen de la lectura antes de lanzar el Sort.
     std::printf("Modo            : hilos (Sample Sort paralelo)\n");
@@ -457,11 +457,11 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
     std::printf("Lectura         : %.3f ms (%.2f M val/s) [secuencial]\n",
                 read_ms,
                 read_ms > 0.0
-                    ? (static_cast<double>(total) / (read_ms / 1000.0)) / 1e6
+                    ? (static_cast<float>(total) / (read_ms / 1000.0)) / 1e6
                     : 0.0);
     std::printf("Memoria compart.: %.2f MB datos + %.2f MB temp\n",
-                static_cast<double>(data_bytes) / (1024.0 * 1024.0),
-                static_cast<double>(data_bytes) / (1024.0 * 1024.0));
+                static_cast<float>(data_bytes) / (1024.0 * 1024.0),
+                static_cast<float>(data_bytes) / (1024.0 * 1024.0));
     print_summary(path, data, rows, cols, read_ms);
 
     // --- Ordenamiento paralelo (scatter secuencial + cubetas en paralelo) ---
@@ -482,7 +482,7 @@ bool run_parallel(const char* path, std::size_t rows, std::size_t cols,
 
     // --- Verificacion global ---
     // is_sorted_ascending verifica O(n) que cada par consecutivo cumpla <=.
-    // checksum_bits suma los bits de cada double como uint64; como la suma es
+    // checksum_bits suma los bits de cada float como uint64; como la suma es
     // conmutativa, dos arreglos con el mismo multiset dan el mismo resultado
     // sin importar el orden. Detecta perdidas o duplicaciones de elementos.
     const bool sorted        = is_sorted_ascending(temp, total);
@@ -583,11 +583,11 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
         return false;
     }
     std::size_t chunk_values =
-        (chunk_mb * 1024 * 1024) / sizeof(double);
+        (chunk_mb * 1024 * 1024) / sizeof(float);
     if (chunk_values == 0) chunk_values = 1;
     if (chunk_values > total) chunk_values = total;
 
-    const std::size_t chunk_bytes = chunk_values * sizeof(double);
+    const std::size_t chunk_bytes = chunk_values * sizeof(float);
     // Buffer + overhead del parser. Se pide ~2x para ser conservador.
     if (!check_memory("modo lectura por chunks", 0, chunk_bytes * 2, force)) {
         return false;
@@ -599,13 +599,13 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
         return false;
     }
 
-    std::vector<double> buffer;
+    std::vector<float> buffer;
     try {
         buffer.resize(chunk_values);
     } catch (const std::bad_alloc&) {
         std::fprintf(stderr,
                      "main: no hay memoria para un chunk de %.2f MB\n",
-                     static_cast<double>(chunk_bytes) / (1024.0 * 1024.0));
+                     static_cast<float>(chunk_bytes) / (1024.0 * 1024.0));
         reader.close();
         return false;
     }
@@ -619,8 +619,8 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
     std::size_t read_total = 0;
     std::size_t chunk_index = 0;
     bool have_value = false;
-    double min_value = 0.0;
-    double max_value = 0.0;
+    float min_value = 0.0;
+    float max_value = 0.0;
     std::uint64_t checksum = 0;
 
     while (true) {
@@ -632,7 +632,7 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
         if (count == 0) break;
 
         for (std::size_t i = 0; i < count; ++i) {
-            const double v = buffer[i];
+            const float v = buffer[i];
             if (!have_value) {
                 min_value = v;
                 max_value = v;
@@ -650,8 +650,8 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
             std::printf("Chunk %zu/%zu: %zu valores acumulados (%.1f%%)\n",
                         chunk_index, total_chunks, read_total,
                         total > 0
-                            ? 100.0 * static_cast<double>(read_total) /
-                                  static_cast<double>(total)
+                            ? 100.0 * static_cast<float>(read_total) /
+                                  static_cast<float>(total)
                             : 0.0);
             std::fflush(stdout);
         }
@@ -660,7 +660,7 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
     const std::size_t bytes_read = reader.bytes_read();
     reader.close();
     const auto end = std::chrono::steady_clock::now();
-    const double elapsed_ms = milliseconds(begin, end);
+    const float elapsed_ms = milliseconds(begin, end);
 
     std::printf("\n--- Lectura por chunks (mmap) ---\n");
     std::printf("Archivo         : %s\n", path);
@@ -668,11 +668,11 @@ bool run_chunked_read(const char* path, std::size_t rows, std::size_t cols,
     std::printf("Valores leidos  : %zu (esperados %zu)\n", read_total, total);
     std::printf("Bytes leidos    : %zu\n", bytes_read);
     std::printf("Chunks          : %zu (%.2f MB por chunk)\n", total_chunks,
-                static_cast<double>(chunk_bytes) / (1024.0 * 1024.0));
+                static_cast<float>(chunk_bytes) / (1024.0 * 1024.0));
     std::printf("Tiempo lectura  : %.3f ms\n", elapsed_ms);
     std::printf("Rendimiento     : %.2f M valores/s\n",
                 elapsed_ms > 0.0
-                    ? (static_cast<double>(read_total) / (elapsed_ms / 1000.0)) /
+                    ? (static_cast<float>(read_total) / (elapsed_ms / 1000.0)) /
                           1e6
                     : 0.0);
     std::printf("Min / Max       : %g / %g\n", min_value, max_value);
@@ -708,7 +708,7 @@ bool run_verify_bin(const char* path, std::size_t rows, std::size_t cols) {
     const auto begin = std::chrono::steady_clock::now();
     const bool ok = verify_bin(path, rows, cols, stats);
     const auto end = std::chrono::steady_clock::now();
-    const double elapsed_ms = milliseconds(begin, end);
+    const float elapsed_ms = milliseconds(begin, end);
 
     std::printf("\n--- Verificacion binaria ---\n");
     std::printf("Archivo         : %s\n", path);
