@@ -270,7 +270,7 @@ bool verify_bin(const char* path, std::size_t rows, std::size_t cols,
             prev = v;
 
             std::uint64_t bits = 0;
-            std::memcpy(&bits, &v, sizeof(bits));
+            std::memcpy(&bits, &v, sizeof(v));
             checksum += bits;
         }
         read_total += got;

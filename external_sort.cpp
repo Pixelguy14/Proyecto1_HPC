@@ -48,7 +48,7 @@ inline std::uint64_t checksum_bits_buffer(const float* data, std::size_t n) {
     std::uint64_t sum = 0;
     for (std::size_t i = 0; i < n; ++i) {
         std::uint64_t bits = 0;
-        std::memcpy(&bits, &data[i], sizeof(bits));
+        std::memcpy(&bits, &data[i], sizeof(data[i]));   // 4 bytes, no 8
         sum += bits;
     }
     return sum;
@@ -463,7 +463,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
 
         // Acumular checksum de bits
         std::uint64_t bits = 0;
-        std::memcpy(&bits, &val, sizeof(bits));
+        std::memcpy(&bits, &val, sizeof(val));
         accumulated_output_checksum += bits;
 
         // Escritura bufferizada al archivo de salida

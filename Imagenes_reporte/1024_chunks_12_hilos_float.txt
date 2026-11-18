@@ -1,0 +1,56 @@
+$ ./ordenar_matriz 1024 --hilos 12 salida.bin
+
+
+TEST: La matriz (1600000000 valores = 5.96 GB) no cabe en memoria
+disponible (requiere 11.92 GB en shm / 17.88 GB en RAM;
+disponible: 7.39 GB en shm / 9.75 GB en RAM).
+-> Activando el Ordenamiento Externo Out-of-Core
+   (runs en disco + K-Way Merge con Min-Heap y streaming)
+
+
+
+
+--- FASE 1: Generacion y ordenamiento de runs en paralelo ---
+
+Archivo de entrada : matriz_a.txt
+Dimensiones        : 40000 x 40000 (1600000000 valores)
+Tamano de run      : 1024.00 MB (268435456 valores)
+Hilos por run      : 12 (Sample Sort con memoria compartida)
+
+  [Run 0000] 268435456 valores ordenados en 13479.04 ms -> runs/run_00000.bin
+  [Run 0001] 268435456 valores ordenados en 12928.50 ms -> runs/run_00001.bin
+  [Run 0002] 268435456 valores ordenados en 12589.76 ms -> runs/run_00002.bin
+  [Run 0003] 268435456 valores ordenados en 12694.83 ms -> runs/run_00003.bin
+  [Run 0004] 268435456 valores ordenados en 12814.03 ms -> runs/run_00004.bin
+  [Run 0005] 257822720 valores ordenados en 12228.67 ms -> runs/run_00005.bin
+
+Fase 1 completada : 6 runs generados en 203745.30 ms
+Estadistica runs  : Promedio 12789.14 ms +/- 378.32 ms (min 12228.67 ms, max 13479.04 ms)
+
+
+--- FASE 2: K-Way Merge en streaming con Min-Heap ---
+
+Runs a mezclar     : 6
+Buffer por run     : 0.50 MB
+Destino de salida  : salida.bin
+
+  Progreso Merge: 160000000/1600000000 valores (10.0%)
+  Progreso Merge: 320000000/1600000000 valores (20.0%)
+  Progreso Merge: 480000000/1600000000 valores (30.0%)
+  Progreso Merge: 640000000/1600000000 valores (40.0%)
+  Progreso Merge: 800000000/1600000000 valores (50.0%)
+  Progreso Merge: 960000000/1600000000 valores (60.0%)
+  Progreso Merge: 1120000000/1600000000 valores (70.0%)
+  Progreso Merge: 1280000000/1600000000 valores (80.0%)
+  Progreso Merge: 1440000000/1600000000 valores (90.0%)
+  Progreso Merge: 1600000000/1600000000 valores (100.0%)
+
+--- Resumen Final del Ordenamiento Externo ---
+Valores ordenados  : 1600000000 / 1600000000
+Min / Max          : -10 / 10
+Verificacion orden : ordenado en orden ascendente
+Checksum de bits   : 3447059619426937470 vs 3447059619426937470 -> OK (mismos elementos)
+Tiempo Fase 1      : 203745.297 ms (I/O entrada + runs paralelos)
+Tiempo Fase 2      : 24683.410 ms (K-Way Merge streaming)
+Tiempo Total Pared : 228428.984 ms
+Archivo guardado   : salida.bin

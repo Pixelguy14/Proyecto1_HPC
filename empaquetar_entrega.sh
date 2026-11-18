@@ -33,25 +33,26 @@ ARCHIVOS=(
     readme.md
     LICENSE
     main.cpp
+    chunked_reader.cpp
+    chunked_reader.hpp
     csv_parser.cpp
     csv_parser.hpp
+    external_sort.cpp
+    external_sort.hpp
+    file_io.cpp
+    file_io.hpp
     merge_sort.cpp
     merge_sort.hpp
-    sort_worker.cpp
-    sort_worker.hpp
-    shared_memory.cpp
-    shared_memory.hpp
     parallel_sort.cpp
     parallel_sort.hpp
     sample_sort.cpp
     sample_sort.hpp
     scatter_gather.cpp
     scatter_gather.hpp
-    chunked_reader.cpp
-    chunked_reader.hpp
-    file_io.cpp
-    file_io.hpp
-    empaquetar_entrega.sh
+    shared_memory.cpp
+    shared_memory.hpp
+    sort_worker.cpp
+    sort_worker.hpp
 )
 
 for archivo in "${ARCHIVOS[@]}"; do
@@ -62,21 +63,7 @@ for archivo in "${ARCHIVOS[@]}"; do
     fi
 done
 
-# matriz_a.txt: hardlink si se puede, copia si no.
-DATOS_DESTINO="$DESTINO/matriz_a.txt"
-if [[ -e "$DATOS_DESTINO" ]]; then
-    echo "matriz_a.txt ya existe en el destino; se reutiliza."
-elif ln "$DATOS" "$DATOS_DESTINO" 2>/dev/null; then
-    echo "matriz_a.txt enlazado con hardlink (no ocupa espacio extra)."
-else
-    echo "Hardlink no disponible; copiando 16.8 GB (puede tardar)..."
-    cp --reflink=auto "$DATOS" "$DATOS_DESTINO"
-fi
-
 echo
 echo "Entrega lista en: $DESTINO"
 echo "Compila con:      make"
 echo "Prueba de lectura: ./ordenar_matriz matriz_a.txt 40000 40000 64"
-echo
-echo "Nota: el .bin de salida NO se entrega; lo genera el profesor al ejecutar"
-echo "      el programa con --muestreo y luego lo valida con --verificar-bin."
