@@ -1,16 +1,18 @@
 # ==============================================================================
 # PROJECT CONFIGURATION
 # ==============================================================================
-TARGET      := leer_csv
+TARGET      := ordenar_matriz
 SRCDIR      := .
 OBJDIR      := obj
 BINDIR      := .
 
 # Compiler and Flags
 CXX         := g++
-CXXFLAGS    := -Wall -Wextra -std=c++17 -O2
+CXXFLAGS    := -Wall -Wextra -std=c++17 -O3
 #CPPFLAGS    := -Iinclude # Include paths (e.g., if you have a separate 'include' folder)
-CPPFLAGS    := 
+CPPFLAGS    :=
+# Bibliotecas del proyecto: -lrt para shm_open/mmap y -lpthread para hilos.
+LDLIBS      := -lrt -lpthread
 
 # ==============================================================================
 # FILE DISCOVERY & CORRESPONDENCE
@@ -27,12 +29,11 @@ DEPS        := $(OBJS:.o=.d)
 
 # Final binary path
 EXEC        := $(BINDIR)/$(TARGET)
-# EXEC        := $(TARGET)
 
 # ==============================================================================
 # RULES & TARGETS
 # ==============================================================================
-.PHONY: all clean
+.PHONY: all clean entrega
 
 # Default rule to build the executable
 all: $(EXEC)
@@ -40,7 +41,7 @@ all: $(EXEC)
 # Rule to link object files into the final executable
 $(EXEC): $(OBJS)
 	@mkdir -p $(BINDIR)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDLIBS)
 
 # Rule to compile C++ source files into object files
 # -MMD -MP flags automatically generate .d dependency files
@@ -51,7 +52,11 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 # Include generated dependency files (ignores them if they don't exist yet)
 -include $(DEPS)
 
+# Arma la carpeta de entrega (codigo + matriz_a.txt, sin duplicar los 16.8 GB).
+entrega: $(EXEC)
+	./empaquetar_entrega.sh
+
 # Clean rule to wipe the build artifacts safely
 clean:
 	@echo "Cleaning project..."
-	rm -r $(OBJDIR) $(EXEC)
+	rm -rf $(OBJDIR) $(EXEC)
