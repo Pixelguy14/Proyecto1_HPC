@@ -475,7 +475,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
                     out_bin_count = 0;
                 }
             } else if (is_txt_out) {
-                std::fprintf(out_fp, "%.10g ", val);
+                std::fprintf(out_fp, "%f ", val);
                 if ((merged_count + 1) % cols == 0) {
                     std::fputc('\n', out_fp);
                 }

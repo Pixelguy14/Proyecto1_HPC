@@ -80,8 +80,8 @@ bool save_text(const char* path, const float* data, std::size_t rows,
 
 bool save_csv(const char* path, const float* data, std::size_t rows,
               std::size_t cols) {
-    // Se conserva el comportamiento historico: comas y %.17g.
-    return save_text(path, data, rows, cols, ',', "%.17g");
+    // Se conserva el comportamiento historico: comas y %f.
+    return save_text(path, data, rows, cols, ',', "%f");
 }
 
 bool save_matrix(const char* path, const float* data, std::size_t rows,
@@ -95,13 +95,13 @@ bool save_matrix(const char* path, const float* data, std::size_t rows,
         return save_bin(path, data, rows, cols);
     }
     if (ends_with_ci(path, ".txt")) {
-        // %.10g es suficiente para los 6 decimales de matriz_a.txt y evita
+        // %f es suficiente para los 6 decimales de matriz_a.txt y evita
         // imprimir artefactos de representacion binaria (%.17g).
-        return save_text(path, data, rows, cols, ' ', "%.10g");
+        return save_text(path, data, rows, cols, ' ', "%f");
     }
 
     // .csv y cualquier otra extension: comportamiento historico.
-    return save_text(path, data, rows, cols, ',', "%.17g");
+    return save_text(path, data, rows, cols, ',', "%f");
 }
 
 bool save_bin(const char* path, const float* data, std::size_t rows,
