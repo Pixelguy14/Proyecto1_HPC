@@ -66,10 +66,10 @@ texto completo nunca se carga en heap.
 ./ordenar_matriz 64 --hilos 8 # parametors: tamaño del chunk, y cantidad de hilos
 
 # Sample Sort con 4 hilos: ordena y guarda en binario
-./ordenar_matriz 64 --hilos 4 salida.bin
+./ordenar_matriz 1024 --hilos 12 salida.txt
 
 # Verificar que el .bin generado esté ordenado
-./ordenar_matriz --verificar-bin salida.bin
+./ordenar_matriz --verificar-bin salida.txt
 ```
 
 ## Archivo `matriz_a.txt`

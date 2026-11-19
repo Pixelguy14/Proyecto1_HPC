@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "chunked_reader.hpp"
@@ -36,8 +37,8 @@ namespace {
 // Constantes y utilidades de tiempo
 // ---------------------------------------------------------------------------
 constexpr char kBinMagic[8] = {'M', 'A', 'T', 'B', 'I', 'N', '1', '\0'};
-constexpr std::size_t kMergeBufferElements = 131072; // 1 MB por run (128K floats)
-constexpr std::size_t kOutBufferElements   = 262144; // 2 MB buffer de salida
+constexpr std::size_t kMergeBufferElements = 1048576; // 4.00 MB por run (1M floats)
+constexpr std::size_t kOutBufferElements   = 4194304; // 16.00 MB buffer de salida binario
 
 inline float ms_since(std::chrono::steady_clock::time_point begin) {
     const auto end = std::chrono::steady_clock::now();
@@ -201,7 +202,8 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     std::printf("Tamano de run      : %.2f MB (%zu valores)\n",
                 static_cast<float>(allocated_chunk_bytes) / (1024.0 * 1024.0),
                 chunk_values);
-    std::printf("Hilos por run      : %zu (Sample Sort con memoria compartida)\n\n", num_threads);
+    std::printf("Hilos por run      : %zu (Sample Sort con memoria compartida)\n", num_threads);
+    std::printf("Proceso Maestro    : PID %d\n\n", static_cast<int>(::getpid()));
 
     // Segmentos de memoria compartida reutilizables para ordenar cada run
     SharedMemory data_shm;
@@ -264,60 +266,86 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
         // Sumar al checksum de entrada acumulado
         accumulated_input_checksum += checksum_bits_buffer(shm_data, count);
 
-        // Ordenar el run en memoria usando Sample Sort paralelo
+        // Medir tiempo de ordenamiento y volcado del run
         const auto run_clock_begin = std::chrono::steady_clock::now();
         constexpr std::size_t kSampleSize = 10000;
         constexpr std::uint64_t kSeed = 42;
+        const std::string run_filename = format_run_path(run_files.size());
 
-        bool sort_ok = false;
-        if (count >= num_threads * 2) {
-            ScatterGatherStats sg_stats;
-            sort_ok = sample_sort_parallel(shm_data, shm_temp, count, num_threads,
-                                           kSampleSize, kSeed, control, sg_stats);
-        } else {
-            // Caso borde: run muy pequeno, merge sort directo
-            std::memcpy(shm_temp, shm_data, count * sizeof(float));
-            merge_sort(shm_temp, count);
-            sort_ok = true;
+        // MULTIPROCESO: Lanzar proceso hijo (worker) con fork()
+        // El proceso hijo posee su propio PID y espacio de proceso en el kernel.
+        // Accede a los arreglos shm_data y shm_temp mapeados con MAP_SHARED
+        // y ejecuta el Sample Sort mediante multihilo (pthreads).
+        const pid_t child_pid = ::fork();
+        if (child_pid < 0) {
+            std::fprintf(stderr, "run_external_sort: fallo fork(): %s\n", std::strerror(errno));
+            break;
+        }
+
+        if (child_pid == 0) {// worker PID
+            bool sort_ok = false;
+            if (count >= num_threads * 2) {
+                ScatterGatherStats sg_stats;
+                sort_ok = sample_sort_parallel(shm_data, shm_temp, count, num_threads,
+                                               kSampleSize, kSeed, control, sg_stats);
+            } else {
+                std::memcpy(shm_temp, shm_data, count * sizeof(float));
+                merge_sort(shm_temp, count);
+                sort_ok = true;
+            }
+
+            if (!sort_ok) {
+                std::fprintf(stderr, "run_external_sort [Hijo PID %d]: fallo al ordenar run %zu\n",
+                             static_cast<int>(::getpid()), run_files.size());
+                std::_Exit(1);
+            }
+
+            // Escribir el run ordenado a disco con cabecera BinHeader
+            std::FILE* run_fp = std::fopen(run_filename.c_str(), "wb");
+            if (run_fp == nullptr) {
+                std::fprintf(stderr, "run_external_sort [Hijo PID %d]: no se pudo crear '%s'\n",
+                             static_cast<int>(::getpid()), run_filename.c_str());
+                std::_Exit(2);
+            }
+
+            BinHeader header{};
+            std::memcpy(header.magic, kBinMagic, sizeof(kBinMagic));
+            header.version = 1;
+            header.dtype = 8;
+            header.rows = static_cast<std::uint64_t>(count);
+            header.cols = 1;
+            header.count = static_cast<std::uint64_t>(count);
+
+            if (std::fwrite(&header, sizeof(header), 1, run_fp) != 1 ||
+                std::fwrite(shm_temp, sizeof(float), count, run_fp) != count) {
+                std::fprintf(stderr, "run_external_sort [Hijo PID %d]: error al escribir '%s'\n",
+                             static_cast<int>(::getpid()), run_filename.c_str());
+                std::fclose(run_fp);
+                std::_Exit(3);
+            }
+            std::fclose(run_fp);
+
+            // Terminacion limpia inmediata del proceso hijo
+            std::_Exit(0);
+        }
+
+        // PROCESO MAESTRO (Padre)
+        int child_status = 0;
+        const pid_t waited_pid = ::waitpid(child_pid, &child_status, 0);
+        if (waited_pid != child_pid || !WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0) { // Sincronizacion interprocesos mediante waitpid()
+            std::fprintf(stderr, "run_external_sort [Maestro PID %d]: proceso hijo PID %d fallo con codigo %d\n",
+                         static_cast<int>(::getpid()), static_cast<int>(child_pid),
+                         WIFEXITED(child_status) ? WEXITSTATUS(child_status) : -1);
+            break;
         }
 
         const float run_ms = ms_since(run_clock_begin);
         run_durations_ms.push_back(run_ms);
-
-        if (!sort_ok) {
-            std::fprintf(stderr, "run_external_sort: error al ordenar run %zu\n", run_files.size());
-            break;
-        }
-
-        // Escribir el run ordenado a disco con cabecera BinHeader
-        const std::string run_filename = format_run_path(run_files.size());
-        std::FILE* run_fp = std::fopen(run_filename.c_str(), "wb");
-        if (run_fp == nullptr) {
-            std::fprintf(stderr, "run_external_sort: no se pudo crear '%s'\n", run_filename.c_str());
-            break;
-        }
-
-        BinHeader header{};
-        std::memcpy(header.magic, kBinMagic, sizeof(kBinMagic));
-        header.version = 1;
-        header.dtype = 8;
-        header.rows = static_cast<std::uint64_t>(count);
-        header.cols = 1;
-        header.count = static_cast<std::uint64_t>(count);
-
-        if (std::fwrite(&header, sizeof(header), 1, run_fp) != 1 ||
-            std::fwrite(shm_temp, sizeof(float), count, run_fp) != count) {
-            std::fprintf(stderr, "run_external_sort: error al escribir '%s'\n", run_filename.c_str());
-            std::fclose(run_fp);
-            break;
-        }
-        std::fclose(run_fp);
-
         run_files.push_back(run_filename);
         total_read += count;
 
-        std::printf("  [Run %04zu] %zu valores ordenados en %8.2f ms -> %s\n",
-                    run_files.size() - 1, count, run_ms, run_filename.c_str());
+        std::printf("  [Run %04zu] %zu valores ordenados en %8.2f ms [Hijo PID %d] -> %s\n",
+                    run_files.size() - 1, count, run_ms, static_cast<int>(child_pid), run_filename.c_str());
         std::fflush(stdout);
     }
 
@@ -400,6 +428,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
     bool is_txt_out = false;
     std::FILE* out_fp = nullptr;
     std::vector<float> out_bin_buffer;
+    std::vector<char> out_txt_buffer;
     std::size_t out_bin_count = 0;
 
     if (output_path != nullptr) {
@@ -421,6 +450,11 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
         } else {
             is_txt_out = true;
             out_fp = std::fopen(output_path, "w");
+            if (out_fp != nullptr) {
+                // Buffer I/O de 16 MB para evitar millones de syscalls al escribir texto
+                out_txt_buffer.resize(16 * 1024 * 1024);
+                std::setvbuf(out_fp, out_txt_buffer.data(), _IOFBF, out_txt_buffer.size());
+            }
         }
 
         if (out_fp == nullptr) {
@@ -475,7 +509,7 @@ bool run_external_sort(const char* input_path, std::size_t rows, std::size_t col
                     out_bin_count = 0;
                 }
             } else if (is_txt_out) {
-                std::fprintf(out_fp, "%f ", val);
+                std::fprintf(out_fp, "%.6f ", val);
                 if ((merged_count + 1) % cols == 0) {
                     std::fputc('\n', out_fp);
                 }

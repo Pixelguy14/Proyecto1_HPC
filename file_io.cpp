@@ -57,8 +57,8 @@ bool save_text(const char* path, const float* data, std::size_t rows,
         return false;
     }
 
-    // Buffer grande: evita una escritura al disco por cada numero.
-    std::vector<char> buffer(1 << 20);
+    // Buffer grande de 16 MB: evita millones de llamadas al sistema (syscalls)
+    std::vector<char> buffer(16 * 1024 * 1024);
     std::setvbuf(file, buffer.data(), _IOFBF, buffer.size());
 
     const std::size_t total = rows * cols;
@@ -80,8 +80,8 @@ bool save_text(const char* path, const float* data, std::size_t rows,
 
 bool save_csv(const char* path, const float* data, std::size_t rows,
               std::size_t cols) {
-    // Se conserva el comportamiento historico: comas y %f.
-    return save_text(path, data, rows, cols, ',', "%f");
+    // Precision de 6 decimales para coincidir con la entrada (matriz_a.txt)
+    return save_text(path, data, rows, cols, ',', "%.6f");
 }
 
 bool save_matrix(const char* path, const float* data, std::size_t rows,
@@ -95,13 +95,12 @@ bool save_matrix(const char* path, const float* data, std::size_t rows,
         return save_bin(path, data, rows, cols);
     }
     if (ends_with_ci(path, ".txt")) {
-        // %f es suficiente para los 6 decimales de matriz_a.txt y evita
-        // imprimir artefactos de representacion binaria (%.17g).
-        return save_text(path, data, rows, cols, ' ', "%f");
+        // En matriz_a.txt los valores tienen exactamente 6 decimales (ej.  2.324872)
+        return save_text(path, data, rows, cols, ' ', "%.6f");
     }
 
-    // .csv y cualquier otra extension: comportamiento historico.
-    return save_text(path, data, rows, cols, ',', "%f");
+    // .csv y cualquier otra extension
+    return save_text(path, data, rows, cols, ',', "%.6f");
 }
 
 bool save_bin(const char* path, const float* data, std::size_t rows,

@@ -40,8 +40,8 @@ bool save_csv(const char* path, const float* data, std::size_t rows,
               std::size_t cols);
 
 // Guarda segun la extension:
-//   .csv -> comas, precision %.17g
-//   .txt -> espacios, precision %.10g
+//   .csv -> comas, precision %.6f (coincide con los 6 decimales de entrada)
+//   .txt -> espacios, precision %.6f (coincide con los 6 decimales de entrada)
 //   .bin -> cabecera BinHeader + floats crudos
 // Cualquier otra extension se trata como .csv.
 bool save_matrix(const char* path, const float* data, std::size_t rows,

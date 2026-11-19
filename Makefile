@@ -17,8 +17,8 @@ LDLIBS      := -lrt -lpthread
 # ==============================================================================
 # FILE DISCOVERY & CORRESPONDENCE
 # ==============================================================================
-# Find all .cpp files in the source directory
-SRCS        := $(shell find $(SRCDIR) -type f -name "*.cpp")
+# Find all .cpp files in the source directory (maxdepth 1 to avoid subfolders like entrega/)
+SRCS        := $(shell find $(SRCDIR) -maxdepth 1 -type f -name "*.cpp")
 
 # Map source files to object files in the object directory
 # e.g., src/main.cpp -> obj/main.o

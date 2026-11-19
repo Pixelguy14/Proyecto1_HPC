@@ -1,0 +1,54 @@
+$ ./ordenar_matriz 2048 --hilos 12 salida.txt
+
+
+TEST: La matriz (1600000000 valores = 5.96 GB) no cabe en memoria
+disponible (requiere 11.92 GB en shm / 17.88 GB en RAM;
+disponible: 7.39 GB en shm / 8.47 GB en RAM).
+-> Activando el Ordenamiento Externo Out-of-Core
+   (runs en disco + K-Way Merge con Min-Heap y streaming)
+
+
+
+
+--- FASE 1: Generacion y ordenamiento de runs en paralelo ---
+
+Archivo de entrada : matriz_a.txt
+Dimensiones        : 40000 x 40000 (1600000000 valores)
+Tamano de run      : 2048.00 MB (536870912 valores)
+Hilos por run      : 12 (Sample Sort con memoria compartida)
+Proceso Maestro    : PID 5029
+
+  [Run 0000] 536870912 valores ordenados en 28626.80 ms [Hijo PID 5050] -> runs/run_00000.bin
+  [Run 0001] 536870912 valores ordenados en 27684.70 ms [Hijo PID 5076] -> runs/run_00001.bin
+  [Run 0002] 526258176 valores ordenados en 27252.21 ms [Hijo PID 5101] -> runs/run_00002.bin
+
+Fase 1 completada : 3 runs generados en 212031.56 ms
+Estadistica runs  : Promedio 27854.57 ms +/- 573.88 ms (min 27252.21 ms, max 28626.80 ms)
+
+
+--- FASE 2: K-Way Merge en streaming con Min-Heap ---
+
+Runs a mezclar     : 3
+Buffer por run     : 4.00 MB
+Destino de salida  : salida.txt
+
+  Progreso Merge: 160000000/1600000000 valores (10.0%)
+  Progreso Merge: 320000000/1600000000 valores (20.0%)
+  Progreso Merge: 480000000/1600000000 valores (30.0%)
+  Progreso Merge: 640000000/1600000000 valores (40.0%)
+  Progreso Merge: 800000000/1600000000 valores (50.0%)
+  Progreso Merge: 960000000/1600000000 valores (60.0%)
+  Progreso Merge: 1120000000/1600000000 valores (70.0%)
+  Progreso Merge: 1280000000/1600000000 valores (80.0%)
+  Progreso Merge: 1440000000/1600000000 valores (90.0%)
+  Progreso Merge: 1600000000/1600000000 valores (100.0%)
+
+--- Resumen Final del Ordenamiento Externo ---
+Valores ordenados  : 1600000000 / 1600000000
+Min / Max          : -10 / 10
+Verificacion orden : ordenado en orden ascendente
+Checksum de bits   : 3447059619426937470 vs 3447059619426937470 -> OK (mismos elementos)
+Tiempo Fase 1      : 212031.562 ms (I/O entrada + runs paralelos)
+Tiempo Fase 2      : 165750.391 ms (K-Way Merge streaming)
+Tiempo Total Pared : 377782.250 ms
+Archivo guardado   : salida.txt
